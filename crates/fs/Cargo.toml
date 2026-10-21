@@ -1,0 +1,19 @@
+[package]
+name = "slim-fs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+slim-core = { path = "../core" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+libc.workspace = true
+fuser = { workspace = true, optional = true }
+
+[features]
+default = []
+# Real virtual drive through macFUSE or FUSE-T (needs libfuse installed).
+fuse = ["dep:fuser", "fuser/libfuse"]
