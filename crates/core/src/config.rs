@@ -1,5 +1,6 @@
 //! User configuration, stored as JSON next to the index.
 
+use crate::categories::{self, Category};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -36,6 +37,9 @@ pub struct Config {
     pub folders: Vec<PathBuf>,
     /// ID documents (and other sensitive categories) stay hidden until enabled.
     pub sensitive_enabled: bool,
+    /// Built-in categories the user removed, by id. Files keep their labels,
+    /// so bringing a category back is instant.
+    pub hidden_categories: Vec<String>,
     /// When false, only vectors and extracted facts are kept, not document text.
     pub store_full_text: bool,
     /// Skip background indexing while the Mac runs on battery.
@@ -60,6 +64,7 @@ impl Default for Config {
         Config {
             folders: vec![home.join("Downloads"), home.join("Documents")],
             sensitive_enabled: false,
+            hidden_categories: Vec::new(),
             store_full_text: true,
             pause_on_battery: true,
             paused: false,
@@ -96,6 +101,17 @@ impl Config {
         Ok(())
     }
 
+    /// Whether a category shows up as a folder: not removed by the user, and
+    /// not a sensitive one while those are switched off.
+    pub fn shows_category(&self, c: &Category) -> bool {
+        (self.sensitive_enabled || !c.sensitive) && !self.hidden_categories.iter().any(|h| h == c.id)
+    }
+
+    /// Categories that appear as folders on the drive and in the app.
+    pub fn visible_categories(&self) -> impl Iterator<Item = &'static Category> + '_ {
+        categories::ALL.iter().filter(|c| self.shows_category(c))
+    }
+
     /// True if `path` lies inside one of the watched folders.
     pub fn is_watched(&self, path: &Path) -> bool {
         self.folders.iter().any(|f| path.starts_with(f))
@@ -104,5 +120,22 @@ impl Config {
     /// The watched folder that contains `path`, if any.
     pub fn root_of(&self, path: &Path) -> Option<&PathBuf> {
         self.folders.iter().filter(|f| path.starts_with(f)).max_by_key(|f| f.as_os_str().len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn removed_and_sensitive_categories_are_not_shown() {
+        let mut c = Config { hidden_categories: vec!["invoices".into()], ..Config::default() };
+        let names: Vec<_> = c.visible_categories().map(|c| c.id).collect();
+        assert!(!names.contains(&"invoices"));
+        assert!(!names.contains(&"id_documents"));
+        assert!(names.contains(&"contracts"));
+        c.sensitive_enabled = true;
+        c.hidden_categories.clear();
+        assert_eq!(c.visible_categories().count(), categories::ALL.len());
     }
 }

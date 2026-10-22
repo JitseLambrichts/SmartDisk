@@ -4,6 +4,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             Tab("Folders", systemImage: "folder") { FoldersSettings() }
+            Tab("Categories", systemImage: "square.grid.2x2") { CategoriesSettings() }
             Tab("Privacy", systemImage: "hand.raised") { PrivacySettings() }
             Tab("Drive", systemImage: "externaldrive") { DriveSettings() }
             Tab("Activity", systemImage: "list.bullet.rectangle") { ActivitySettings() }
@@ -60,6 +61,41 @@ struct FoldersSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Turn built-in categories on and off. Off removes the folder; files keep their labels.
+struct CategoriesSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(model.categories.filter { !$0.sensitive }) { category in
+                    Toggle(isOn: Binding(
+                        get: { !category.hidden },
+                        set: { on in
+                            Task {
+                                if on {
+                                    await model.restoreCategory(category.id)
+                                } else {
+                                    await model.removeFolder(category.name)
+                                }
+                            }
+                        }
+                    )) {
+                        Label(category.name, systemImage: category.symbol)
+                    }
+                }
+            } header: {
+                Text("Categories")
+            } footer: {
+                Text("Switched off, a category's folder disappears from the sidebar and the drive. Your files are never touched, and switching it back on brings it back right away. ID documents are under Privacy.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .task(id: model.status?.config.hiddenCategories) { await model.loadCategories() }
     }
 }
 

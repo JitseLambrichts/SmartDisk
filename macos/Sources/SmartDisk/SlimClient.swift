@@ -74,9 +74,12 @@ struct SlimClient: Sendable {
     func why(_ original: String) async throws -> Explanation { try await decode(Explanation.self, ["why", original]) }
     func log(limit: Int = 100) async throws -> [LogRow] { try await decode([LogRow].self, ["log", "--limit", "\(limit)"]) }
     func capabilities() async throws -> Capabilities { try await decode(Capabilities.self, ["capabilities"]) }
+    func categories() async throws -> [CategoryInfo] { try await decode([CategoryInfo].self, ["categories"]) }
 
     func mkdir(_ name: String) async throws { _ = try await run(["mkdir", name]) }
+    /// Removes a smart folder, or hides a built-in category.
     func rmdir(_ name: String) async throws { _ = try await run(["rmdir", name]) }
+    func showCategory(_ id: String) async throws { _ = try await run(["categories", "show", id]) }
     func rename(_ from: String, to: String) async throws { _ = try await run(["mv", from, to]) }
     func label(_ original: String, folder: String, belongs: Bool?) async throws {
         let flag = belongs.map { $0 ? "--yes" : "--no" } ?? "--reset"

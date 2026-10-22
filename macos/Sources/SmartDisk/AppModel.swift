@@ -29,6 +29,9 @@ final class AppModel {
     var searchResult: QueryResult?
     var isSearching = false
     var errorMessage: String?
+    /// A folder waiting for the user to confirm its removal.
+    var folderToRemove: Folder?
+    var categories: [CategoryInfo] = []
     var log: [LogRow] = []
 
     var driveMode: DriveMode {
@@ -176,13 +179,29 @@ final class AppModel {
         }
     }
 
-    func deleteSmartFolder(_ name: String) async {
+    /// Removes a smart folder or hides a category. No file is touched either way.
+    func removeFolder(_ name: String) async {
         guard let client else { return }
         do {
             try await client.rmdir(name)
-            if selection == .folder(name) { selection = status?.folders.first.map { .folder($0.name) } }
             await refreshStatus()
+            if selection == .folder(name) { selection = status?.folders.first.map { .folder($0.name) } }
             await reloadSelection()
+            await loadCategories()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func loadCategories() async {
+        categories = (try? await client?.categories()) ?? categories
+    }
+
+    /// Brings a removed category back.
+    func restoreCategory(_ id: String) async {
+        guard let client else { return }
+        do {
+            try await client.showCategory(id)
+            await refreshStatus()
+            await loadCategories()
         } catch { errorMessage = error.localizedDescription }
     }
 

@@ -41,6 +41,8 @@ struct Folder: Decodable, Equatable, Hashable, Identifiable {
 struct DriveConfig: Codable, Equatable {
     var folders: [String]
     var sensitiveEnabled: Bool
+    /// Built-in categories the user removed, by id.
+    var hiddenCategories: [String]?
     var storeFullText: Bool
     var pauseOnBattery: Bool
     var paused: Bool
@@ -49,6 +51,15 @@ struct DriveConfig: Codable, Equatable {
     var mirrorPath: String
     var inboxPath: String
     var helperPath: String?
+}
+
+/// A built-in category, as `slim categories` lists it.
+struct CategoryInfo: Decodable, Equatable, Identifiable {
+    var id: String
+    var name: String
+    var symbol: String
+    var sensitive: Bool
+    var hidden: Bool
 }
 
 struct Item: Decodable, Equatable, Hashable, Identifiable {

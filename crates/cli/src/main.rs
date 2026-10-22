@@ -51,9 +51,9 @@ enum Command {
     Query { text: String },
     /// Show how a folder name is read as a query.
     Parse { name: String },
-    /// Create a smart folder (same as mkdir on the drive).
+    /// Create a smart folder (same as mkdir on the drive), or bring back a removed category.
     Mkdir { name: String },
-    /// Remove a smart folder. No file is touched.
+    /// Remove a smart folder or a category. No file is touched.
     Rmdir { name: String },
     /// Rename a smart folder; its contents are recomputed.
     Mv { from: String, to: String },
@@ -83,7 +83,10 @@ enum Command {
         action: Option<SettingsAction>,
     },
     /// Built-in categories.
-    Categories,
+    Categories {
+        #[command(subcommand)]
+        action: Option<CategoryAction>,
+    },
     /// Recent activity.
     Log {
         #[arg(long, default_value_t = 50)]
@@ -100,6 +103,15 @@ enum FolderAction {
     List,
     Add { path: PathBuf },
     Remove { path: PathBuf },
+}
+
+#[derive(Subcommand)]
+enum CategoryAction {
+    List,
+    /// Remove a category folder (by id or name). Files keep their labels.
+    Hide { name: String },
+    /// Bring back a removed category (by id or name).
+    Show { name: String },
 }
 
 #[derive(Subcommand)]
@@ -326,6 +338,9 @@ fn main() -> Result<()> {
         }
         Command::Mkdir { name } => {
             let mut db = Db::open_default()?;
+            if volume::restore_category(&db, &name).map_err(|e| anyhow!("{e}"))? {
+                return print(json, &json!({ "restored": name }), |_| println!("brought back \"{name}\""));
+            }
             let id = volume::create_view(&mut db, embedder.as_ref(), helper_for_queries(&config).as_ref(), &name).map_err(|e| anyhow!("{e}"))?;
             let n = db.view_items(id)?.len();
             print(json, &json!({ "id": id, "name": name, "count": n }), |_| println!("created \"{name}\" with {n} files"))
@@ -439,12 +454,44 @@ fn main() -> Result<()> {
             }
             print(json, &config, |c| println!("{}", serde_json::to_string_pretty(c).unwrap()))
         }
-        Command::Categories => print(json, &categories::ALL, |cats| {
-            for c in cats.iter() {
-                let note = if c.sensitive && !config.sensitive_enabled { "  (hidden: sensitive)" } else { "" };
-                println!("{:<14} {}{note}", c.name, c.description);
+        Command::Categories { action } => {
+            match action {
+                Some(CategoryAction::Hide { name }) => {
+                    let db = Db::open_default()?;
+                    let cat = categories::by_id(&name).or_else(|| categories::by_name(&name)).ok_or_else(|| anyhow!("no category named \"{name}\""))?;
+                    volume::hide_category(&db, cat.id).map_err(|e| anyhow!("{e}"))?;
+                }
+                Some(CategoryAction::Show { name }) => {
+                    let db = Db::open_default()?;
+                    if categories::by_id(&name).or_else(|| categories::by_name(&name)).is_none() {
+                        bail!("no category named \"{name}\"");
+                    }
+                    volume::restore_category(&db, &name).map_err(|e| anyhow!("{e}"))?;
+                }
+                Some(CategoryAction::List) | None => {}
             }
-        }),
+            let config = Config::load()?;
+            let rows: Vec<_> = categories::ALL
+                .iter()
+                .map(|c| {
+                    let mut row = json!(c);
+                    row["hidden"] = json!(!config.shows_category(c));
+                    row
+                })
+                .collect();
+            print(json, &rows, |_| {
+                for c in categories::ALL {
+                    let note = if config.hidden_categories.iter().any(|h| h == c.id) {
+                        "  (removed)"
+                    } else if c.sensitive && !config.sensitive_enabled {
+                        "  (hidden: sensitive)"
+                    } else {
+                        ""
+                    };
+                    println!("{:<14} {}{note}", c.name, c.description);
+                }
+            })
+        }
         Command::Log { limit } => {
             let db = Db::open_default()?;
             print(json, &db.recent_log(limit)?, |rows| {

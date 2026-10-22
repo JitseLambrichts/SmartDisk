@@ -41,6 +41,24 @@ struct ContentView: View {
             NewSmartFolderSheet()
         }
         .focusedSceneValue(\.newSmartFolder) { showingNewFolder = true }
+        .alert(
+            model.folderToRemove.map { "Remove \($0.name)?" } ?? "",
+            isPresented: Binding(get: { model.folderToRemove != nil }, set: { if !$0 { model.folderToRemove = nil } })
+        ) {
+            Button("Remove", role: .destructive) {
+                if let folder = model.folderToRemove {
+                    Task { await model.removeFolder(folder.name) }
+                }
+                model.folderToRemove = nil
+            }
+            Button("Cancel", role: .cancel) { model.folderToRemove = nil }
+        } message: {
+            if model.folderToRemove?.isSmart == true {
+                Text("Only the folder disappears. Your files stay exactly where they are.")
+            } else {
+                Text("Only the folder disappears. Your files stay exactly where they are. You can bring it back in Settings → Categories.")
+            }
+        }
         .alert("Something went wrong", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: {

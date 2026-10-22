@@ -101,20 +101,23 @@ impl<'a> Mirror<'a> {
             .filter(|n| !n.starts_with('.'))
             .collect();
 
-        // New folders the user made: the name becomes a query.
+        // New folders the user made: a removed category comes back, any other name becomes a query.
         for name in on_disk.iter().filter(|n| !manifest.dirs.contains_key(*n) && tree.dir(n).is_none()) {
-            match self.volume.create_view(name) {
+            match self.volume.create_folder(name) {
                 Ok(_) => report.created_views.push(name.clone()),
                 Err(e) => log::warn!("could not create smart folder {name}: {e}"),
             }
         }
-        // Folders the user removed: drop the query (categories come back).
+        // Folders the user removed: drop the query, or hide the category. A mirror
+        // with no folders left was wiped as a whole; categories then come back.
         for name in manifest.dirs.keys().filter(|n| !on_disk.contains(*n)) {
             if let Some(d) = tree.dir(name) {
-                if let DirKind::View(_) = d.kind {
-                    if self.volume.delete_view(name).is_ok() {
-                        report.removed_views.push(name.clone());
-                    }
+                let removable = match d.kind {
+                    DirKind::View(_) => true,
+                    DirKind::Category(_) => !on_disk.is_empty(),
+                };
+                if removable && self.volume.delete_view(name).is_ok() {
+                    report.removed_views.push(name.clone());
                 }
             }
         }
@@ -242,8 +245,8 @@ impl<'a> Mirror<'a> {
             let _ = fs::remove_file(dir_path.join(".DS_Store"));
             let _ = fs::remove_dir(&dir_path); // only succeeds when empty
         }
-        // Hidden categories (sensitive ones switched off) must not linger.
-        for cat in categories::ALL.iter().filter(|c| c.sensitive) {
+        // Hidden categories (removed, or sensitive ones switched off) must not linger.
+        for cat in categories::ALL {
             if tree.dir(cat.name).is_none() && !new.dirs.contains_key(cat.name) {
                 let _ = fs::remove_dir(self.root.join(cat.name));
             }

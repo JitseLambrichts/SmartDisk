@@ -36,6 +36,27 @@ struct FolderDetailView: View {
                 }
                 .buttonStyle(.primary)
                 .help("New smart folder: its name is the search")
+                Menu {
+                    Button("Show in Finder") { model.openDrive(folder.name) }
+                        .disabled(model.drivePath == nil)
+                    Divider()
+                    Button(folder.isSmart ? "Remove Smart Folder…" : "Remove Category…", role: .destructive) {
+                        model.folderToRemove = folder
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(Theme.surface, in: .circle)
+                        .overlay(Circle().strokeBorder(Theme.border))
+                        .contentShape(.circle)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("More")
             }
             FilesCard(items: model.items, folder: folder.name, isLoading: model.isLoadingItems) {
                 emptyState

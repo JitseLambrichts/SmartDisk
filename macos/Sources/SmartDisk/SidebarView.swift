@@ -37,6 +37,11 @@ struct SidebarView: View {
                         SidebarSection("Categories")
                         ForEach(status.categories) { folder in
                             NavRow(folder: folder)
+                                .contextMenu {
+                                    Button("Show in Finder") { model.openDrive(folder.name) }
+                                    Divider()
+                                    Button("Remove Category…", role: .destructive) { model.folderToRemove = folder }
+                                }
                         }
                         SidebarSection("My Smart Folders")
                             .padding(.top, 14)
@@ -86,9 +91,7 @@ struct SidebarView: View {
             newName = folder.name
             renaming = folder
         }
-        Button("Remove Smart Folder", role: .destructive) {
-            Task { await model.deleteSmartFolder(folder.name) }
-        }
+        Button("Remove Smart Folder…", role: .destructive) { model.folderToRemove = folder }
     }
 }
 

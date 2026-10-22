@@ -122,11 +122,6 @@ pub fn by_name(name: &str) -> Option<&'static Category> {
     ALL.iter().find(|c| c.name.eq_ignore_ascii_case(name))
 }
 
-/// Categories visible with the current privacy setting.
-pub fn visible(sensitive_enabled: bool) -> impl Iterator<Item = &'static Category> {
-    ALL.iter().filter(move |c| sensitive_enabled || !c.sensitive)
-}
-
 /// What the classifier needs to know about a file.
 pub struct Doc<'a> {
     pub file_name: &'a str,

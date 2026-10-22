@@ -22,12 +22,12 @@ Three promises:
 | Open or copy a file | Reads the original directly |
 | Create a folder | The name becomes a saved query; the folder fills itself |
 | Rename a folder | The query changes; contents are recomputed |
-| Remove a folder | Only the query disappears |
+| Remove a folder | Only the query disappears; a built-in category is hidden until you bring it back (Settings → Categories, `slim categories show`, or make the folder again) |
 | Remove a file from a folder | "Doesn't belong here" — the original stays |
 | Drop a known file into a folder (mirror) | "Belongs here" |
 | Save a new file onto the drive (mirror) | Moved to `~/Documents/Slim Inbox` and indexed |
 
-Built-in categories: **Invoices, Contracts, ID Documents** (hidden until you enable sensitive categories), **Screenshots, Photos, Housing**. A file can live in several folders at once — a rent invoice shows up in both Invoices and Housing.
+Built-in categories: **Invoices, Contracts, ID Documents** (hidden until you enable sensitive categories), **Screenshots, Photos, Housing**. A file can live in several folders at once — a rent invoice shows up in both Invoices and Housing. Any category you do not need can be removed; files keep their labels, so it comes back instantly.
 
 Folder names are understood in Dutch and English, for example `facturen 2026 boven 100 euro`, `contracten met opzegtermijn`, `alles over mijn kot`, `screenshots met een code erin`, `pdf van school deze maand`.
 

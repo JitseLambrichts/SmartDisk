@@ -122,7 +122,7 @@ impl Tree {
             dirs.push(VDir { name, kind, entries });
         };
 
-        for cat in categories::visible(config.sensitive_enabled) {
+        for cat in config.visible_categories() {
             let members = db.members(cat.id)?;
             let mut items = Vec::new();
             for (id, conf) in members {
@@ -299,8 +299,22 @@ impl SmartVolume {
         create_view(&mut self.db.lock().unwrap(), self.embedder.as_ref(), self.helper_for_queries(), name).inspect(|_| self.invalidate())
     }
 
+    /// Removes a smart folder, or hides a built-in category.
     pub fn delete_view(&self, name: &str) -> VResult<()> {
-        delete_view(&self.db.lock().unwrap(), name).inspect(|_| self.invalidate())
+        delete_view(&self.db.lock().unwrap(), name)?;
+        self.reload_config(); // a hidden category lives in the config
+        self.invalidate();
+        Ok(())
+    }
+
+    /// A new folder: brings back a removed category of that name, or makes a smart folder.
+    pub fn create_folder(&self, name: &str) -> VResult<()> {
+        if restore_category(&self.db.lock().unwrap(), name)? {
+            self.reload_config();
+            self.invalidate();
+            return Ok(());
+        }
+        self.create_view(name).map(|_| ())
     }
 
     pub fn rename_view(&self, from: &str, to: &str) -> VResult<()> {
@@ -353,14 +367,44 @@ pub fn create_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>
 }
 
 pub fn delete_view(db: &Db, name: &str) -> VResult<()> {
-    if categories::by_name(name).is_some() {
-        return Err(VolumeError::NotPermitted("built-in categories cannot be removed".into()));
+    if let Some(cat) = categories::by_name(name) {
+        return hide_category(db, cat.id);
     }
     let v = db.view_by_name(name)?.ok_or(VolumeError::NotFound)?;
     db.delete_view(v.id)?;
     db.bump_generation()?;
     db.log("info", &format!("smart folder removed: \"{name}\" (no files were touched)"))?;
     Ok(())
+}
+
+/// Removes a built-in category folder. Files keep their labels and smart folders
+/// built on the category keep working; only the folder disappears.
+pub fn hide_category(db: &Db, id: &str) -> VResult<()> {
+    let cat = categories::by_id(id).ok_or(VolumeError::NotFound)?;
+    let mut config = Config::load()?;
+    if !config.hidden_categories.iter().any(|h| h == cat.id) {
+        config.hidden_categories.push(cat.id.to_owned());
+        config.save()?;
+    }
+    db.bump_generation()?;
+    db.log("info", &format!("category removed: \"{}\" (no files were touched)", cat.name))?;
+    Ok(())
+}
+
+/// Brings back a removed category, matched by id or folder name.
+/// Returns false when `name` is not a removed category.
+pub fn restore_category(db: &Db, name: &str) -> VResult<bool> {
+    let Some(cat) = categories::by_id(name).or_else(|| categories::by_name(name.trim())) else { return Ok(false) };
+    let mut config = Config::load()?;
+    let before = config.hidden_categories.len();
+    config.hidden_categories.retain(|h| h != cat.id);
+    if config.hidden_categories.len() == before {
+        return Ok(false);
+    }
+    config.save()?;
+    db.bump_generation()?;
+    db.log("info", &format!("category restored: \"{}\"", cat.name))?;
+    Ok(true)
 }
 
 pub fn rename_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>, from: &str, to: &str) -> VResult<()> {
@@ -443,7 +487,7 @@ impl VirtualVolume for SmartVolume {
 
     fn mkdir(&self, path: &str) -> VResult<()> {
         match split(path).as_slice() {
-            [name] => self.create_view(name).map(|_| ()),
+            [name] => self.create_folder(name),
             _ => Err(VolumeError::NotPermitted("smart folders live at the top level".into())),
         }
     }
