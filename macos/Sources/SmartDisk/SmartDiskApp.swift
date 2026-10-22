@@ -20,6 +20,9 @@ struct SmartDiskApp: App {
             CommandGroup(after: .newItem) {
                 NewSmartFolderCommand()
             }
+            CommandGroup(replacing: .sidebar) {
+                SidebarCommand()
+            }
         }
 
         MenuBarExtra {
@@ -77,6 +80,22 @@ struct NewSmartFolderCommand: View {
     }
 }
 
+/// View ▸ Toggle Sidebar (⌃⌘S), for the main window. One fixed title, like SwiftUI's own
+/// sidebar command: a title that depends on the state did not refresh in the menu bar.
+struct SidebarCommand: View {
+    @FocusedBinding(\.sidebarExpanded) private var expanded
+
+    var body: some View {
+        Button("Toggle Sidebar") { expanded?.toggle() }
+            .keyboardShortcut("s", modifiers: [.control, .command])
+            .disabled(expanded == nil)
+    }
+}
+
+struct SidebarExpandedKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
 struct NewSmartFolderKey: FocusedValueKey {
     typealias Value = () -> Void
 }
@@ -85,5 +104,10 @@ extension FocusedValues {
     var newSmartFolder: (() -> Void)? {
         get { self[NewSmartFolderKey.self] }
         set { self[NewSmartFolderKey.self] = newValue }
+    }
+
+    var sidebarExpanded: Binding<Bool>? {
+        get { self[SidebarExpandedKey.self] }
+        set { self[SidebarExpandedKey.self] = newValue }
     }
 }

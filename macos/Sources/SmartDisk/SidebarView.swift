@@ -8,16 +8,24 @@ struct SidebarView: View {
 
     var body: some View {
         @Bindable var model = model
+        // Collapsed: a rail of icons; names show as tooltips.
+        let compact = !model.sidebarExpanded
         VStack(alignment: .leading, spacing: 0) {
-            AppLogo()
+            AppLogo(compact: compact)
                 .padding(.top, 46) // clears the window buttons
                 .padding(.bottom, 30)
-            SearchField(prompt: "Search all files…", text: $model.searchText) {
-                guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                model.selection = .search
-                Task { await model.runSearch() }
+            Group {
+                if compact {
+                    RailButton(symbol: "magnifyingglass", help: "Search all files") { model.sidebarExpanded = true }
+                } else {
+                    SearchField(prompt: "Search all files…", text: $model.searchText) {
+                        guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        model.selection = .search
+                        Task { await model.runSearch() }
+                    }
+                    .help("Search by meaning, e.g. huurcontract")
+                }
             }
-            .help("Search by meaning, e.g. huurcontract")
             .padding(.bottom, 28)
             .task(id: model.searchText) {
                 // Search while typing, once the user pauses.
@@ -34,34 +42,34 @@ struct SidebarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 5) {
                     if let status = model.status {
-                        SidebarSection("General")
+                        SidebarSection("General", compact: compact)
                         ForEach(status.categories) { folder in
-                            NavRow(folder: folder)
+                            NavRow(folder: folder, compact: compact)
                                 .contextMenu {
                                     Button("Show in Finder") { model.openDrive(folder.name) }
                                     Divider()
                                     Button("Remove Category…", role: .destructive) { model.folderToRemove = folder }
                                 }
                         }
-                        SidebarSection("My Smart Folders")
+                        SidebarSection("My Smart Folders", compact: compact)
                             .padding(.top, 26)
                         ForEach(status.smartFolders) { folder in
-                            NavRow(folder: folder)
+                            NavRow(folder: folder, compact: compact)
                                 .contextMenu { smartFolderMenu(folder) }
                         }
-                        NewFolderRow { showingNewFolder = true }
+                        NewFolderRow(compact: compact) { showingNewFolder = true }
                     }
                 }
             }
             .scrollIndicators(.never)
 
             Spacer(minLength: 10)
-            IndexingCard()
+            IndexingCard(compact: compact)
             Rectangle().fill(Theme.border).frame(height: 1)
                 .padding(.vertical, 10)
-            DriveFooter()
+            DriveFooter(compact: compact)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, compact ? 12 : 14)
         .padding(.bottom, 14)
         .frame(maxHeight: .infinity)
         .background(Theme.canvas)
@@ -96,6 +104,8 @@ struct SidebarView: View {
 }
 
 struct AppLogo: View {
+    var compact = false
+
     var body: some View {
         HStack(spacing: 10) {
             // The brand logo ships in the app bundle; `swift run` has no bundle, so it gets a stand-in.
@@ -114,23 +124,64 @@ struct AppLogo: View {
                         in: .circle
                     )
             }
-            Text("Smart Disk")
-                .font(.system(size: 22, weight: .bold))
+            if !compact {
+                Text("Smart Disk")
+                    .font(.system(size: 22, weight: .bold))
+                    .fixedSize()
+            }
         }
-        .padding(.leading, 4)
+        .padding(.leading, compact ? 0 : 4)
     }
 }
 
 struct SidebarSection: View {
     var title: String
-    init(_ title: String) { self.title = title }
+    var compact: Bool
+    init(_ title: String, compact: Bool = false) {
+        self.title = title
+        self.compact = compact
+    }
 
     var body: some View {
-        Text(title.uppercased())
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
+        if compact {
+            // No room for words: a short rule keeps the groups apart.
+            Rectangle().fill(Theme.border)
+                .frame(width: 20, height: 1)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 10)
+        } else {
+            Text(title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+                .fixedSize()
+        }
+    }
+}
+
+/// A square icon button for the collapsed sidebar.
+struct RailButton: View {
+    var symbol: String
+    var help: String
+    var color: Color = .secondary
+    var action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(color)
+                .frame(width: 44, height: 38)
+                .background(hovering ? Theme.navigationSelection : Theme.surfaceMuted, in: .rect(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+        .accessibilityLabel(help)
     }
 }
 
@@ -138,6 +189,7 @@ struct SidebarSection: View {
 struct NavRow: View {
     @Environment(AppModel.self) private var model
     var folder: Folder
+    var compact = false
     @State private var hovering = false
 
     var body: some View {
@@ -149,29 +201,35 @@ struct NavRow: View {
                 Image(systemName: folder.symbol)
                     .font(.system(size: 14, weight: .medium))
                     .frame(width: 20)
-                    .foregroundStyle(.secondary)
-                Text(folder.name)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if folder.count > 0 {
-                    Text(folder.count.formatted())
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    .foregroundStyle(compact && selected ? .primary : .secondary)
+                if !compact {
+                    Text(folder.name)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if folder.count > 0 {
+                        Text(folder.count.formatted())
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .font(.system(size: 14, weight: selected ? .semibold : .regular))
             .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, compact ? 0 : 12)
+            .frame(maxWidth: compact ? .infinity : nil)
             .frame(height: 42)
             .background(selected ? Theme.navigationSelection : hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 8))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .help(compact ? "\(folder.name) (\(folder.count.formatted()))" : "")
+        .accessibilityLabel(folder.name)
     }
 }
 
 struct NewFolderRow: View {
+    var compact = false
     var action: () -> Void
     @State private var hovering = false
 
@@ -181,28 +239,55 @@ struct NewFolderRow: View {
                 Image(systemName: "plus")
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 20)
-                Text("New Smart Folder")
-                Spacer()
+                if !compact {
+                    Text("New Smart Folder")
+                    Spacer()
+                }
             }
             .font(.body.weight(.medium))
             .foregroundStyle(Theme.accent)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, compact ? 0 : 10)
+            .frame(maxWidth: compact ? .infinity : nil)
             .frame(height: 36)
             .background(hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 10))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help("Type what you are looking for; the folder fills itself")
+        .help(compact ? "New Smart Folder" : "Type what you are looking for; the folder fills itself")
+        .accessibilityLabel("New Smart Folder")
     }
 }
 
 /// What the drive is doing right now, in one sentence.
 struct IndexingCard: View {
     @Environment(AppModel.self) private var model
+    var compact = false
 
     var body: some View {
         let s = model.status
+        if compact {
+            // Just the status dot; a stopped drive starts with a click.
+            Button {
+                if s?.daemonRunning == false { model.startDaemon() }
+            } label: {
+                Image(systemName: symbol(s))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(color(s))
+                    .frame(width: 24, height: 24)
+                    .background(color(s).opacity(0.12), in: .circle)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.surfaceMuted, in: .rect(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border))
+            }
+            .buttonStyle(.plain)
+            .help(s?.daemonRunning == false ? "\(title(s)). Click to start it." : title(s))
+        } else {
+            card(s)
+        }
+    }
+
+    private func card(_ s: DriveStatus?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: symbol(s))
@@ -286,9 +371,31 @@ struct IndexingCard: View {
 /// The drive itself, pinned to the bottom of the sidebar.
 struct DriveFooter: View {
     @Environment(AppModel.self) private var model
+    var compact = false
 
     var body: some View {
         let status = model.status
+        if compact {
+            VStack(spacing: 8) {
+                RailButton(symbol: status?.mount?.backend == "fuse" ? "externaldrive.fill" : "folder.fill",
+                           help: "Open the drive in Finder", color: Theme.accent) { model.openDrive() }
+                    .disabled(status?.mount == nil)
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 30)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+            }
+        } else {
+            row(status)
+        }
+    }
+
+    private func row(_ status: DriveStatus?) -> some View {
         HStack(spacing: 10) {
             Image(systemName: status?.mount?.backend == "fuse" ? "externaldrive.fill" : "folder.fill")
                 .font(.system(size: 14))

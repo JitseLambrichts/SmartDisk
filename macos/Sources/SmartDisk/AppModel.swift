@@ -58,6 +58,10 @@ final class AppModel {
         didSet { UserDefaults.standard.set(driveMode.rawValue, forKey: "driveMode") }
     }
 
+    var sidebarExpanded: Bool {
+        didSet { UserDefaults.standard.set(sidebarExpanded, forKey: "sidebarExpanded") }
+    }
+
     var appearance: AppearanceMode {
         didSet {
             UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
@@ -72,6 +76,7 @@ final class AppModel {
     init() {
         driveMode = DriveMode(rawValue: UserDefaults.standard.string(forKey: "driveMode") ?? "") ?? .mirror
         appearance = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system
+        sidebarExpanded = UserDefaults.standard.object(forKey: "sidebarExpanded") as? Bool ?? true
         client = SlimClient.locate()
     }
 

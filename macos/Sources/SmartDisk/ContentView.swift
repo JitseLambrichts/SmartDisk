@@ -8,8 +8,9 @@ struct ContentView: View {
         // A plain row of fixed-width columns instead of a split view: nothing here
         // resizes with its content, so AppKit never loops on window constraints.
         HStack(spacing: 0) {
+            // Collapsed, the sidebar keeps a narrow rail of icons.
             SidebarView(showingNewFolder: $showingNewFolder)
-                .frame(width: 252)
+                .frame(width: model.sidebarExpanded ? 252 : 68)
             HStack(spacing: 0) {
                 detail
                     .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
@@ -29,7 +30,13 @@ struct ContentView: View {
             .padding(.bottom, 12)
         }
         .background(Theme.canvas)
+        .overlay(alignment: .topLeading) {
+            SidebarToggle()
+                .padding(.leading, 78) // right of the window buttons
+                .padding(.top, 3)
+        }
         .animation(.snappy(duration: 0.25), value: model.selectedItemID != nil)
+        .animation(.snappy(duration: 0.25), value: model.sidebarExpanded)
         .ignoresSafeArea(edges: .top)
         .tint(Theme.accent)
         .onChange(of: model.searchText) { _, text in
@@ -47,6 +54,7 @@ struct ContentView: View {
             NewSmartFolderSheet()
         }
         .focusedSceneValue(\.newSmartFolder) { showingNewFolder = true }
+        .focusedSceneValue(\.sidebarExpanded, Binding(get: { model.sidebarExpanded }, set: { model.sidebarExpanded = $0 }))
         .alert(
             model.folderToRemove.map { "Remove \($0.name)?" } ?? "",
             isPresented: Binding(get: { model.folderToRemove != nil }, set: { if !$0 { model.folderToRemove = nil } })
@@ -89,6 +97,29 @@ struct ContentView: View {
         } else {
             WelcomeView(showingNewFolder: $showingNewFolder)
         }
+    }
+}
+
+/// Collapses the sidebar to its icons or expands it again, next to the window buttons like in Finder.
+struct SidebarToggle: View {
+    @Environment(AppModel.self) private var model
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            model.sidebarExpanded.toggle()
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 24)
+                .background(hovering ? Theme.navigationSelection : .clear, in: .rect(cornerRadius: 6))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(model.sidebarExpanded ? "Collapse Sidebar (⌃⌘S)" : "Expand Sidebar (⌃⌘S)")
+        .accessibilityLabel(model.sidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar")
     }
 }
 
