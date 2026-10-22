@@ -8,6 +8,26 @@ enum DriveMode: String, CaseIterable, Identifiable {
     var title: String { self == .mirror ? "Folder in your home" : "Virtual drive (FUSE)" }
 }
 
+/// Light or dark for this app only, or follow macOS.
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 /// What the sidebar has selected.
 enum SidebarItem: Hashable {
     case folder(String)
@@ -38,12 +58,20 @@ final class AppModel {
         didSet { UserDefaults.standard.set(driveMode.rawValue, forKey: "driveMode") }
     }
 
+    var appearance: AppearanceMode {
+        didSet {
+            UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
+            NSApp.appearance = appearance.nsAppearance
+        }
+    }
+
     private var daemon: Process?
     private var lastGeneration = -1
     private var timer: Timer?
 
     init() {
         driveMode = DriveMode(rawValue: UserDefaults.standard.string(forKey: "driveMode") ?? "") ?? .mirror
+        appearance = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system
         client = SlimClient.locate()
     }
 
@@ -51,6 +79,8 @@ final class AppModel {
 
     func start() {
         guard timer == nil else { return }
+        // Not in init: the app object does not exist yet when the model is made.
+        NSApp.appearance = appearance.nsAppearance
         Task {
             await refreshStatus()
             capabilities = try? await client?.capabilities()

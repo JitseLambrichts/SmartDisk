@@ -7,6 +7,7 @@ struct SettingsView: View {
             Tab("Categories", systemImage: "square.grid.2x2") { CategoriesSettings() }
             Tab("Privacy", systemImage: "hand.raised") { PrivacySettings() }
             Tab("Drive", systemImage: "externaldrive") { DriveSettings() }
+            Tab("Appearance", systemImage: "circle.lefthalf.filled") { AppearanceSettings() }
             Tab("Activity", systemImage: "list.bullet.rectangle") { ActivitySettings() }
         }
         .frame(width: 560, height: 440)
@@ -193,6 +194,28 @@ struct DriveSettings: View {
                 LabeledContent("Text recognition (OCR)", value: model.capabilities?.ocr == true ? "On device" : "Helper not found")
                 LabeledContent("Embedding model", value: model.capabilities?.embedder ?? "—")
                 LabeledContent("Apple Intelligence", value: model.capabilities?.foundationModels == true ? "Available" : "Not available")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct AppearanceSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Form {
+            Section {
+                Picker("Appearance", selection: $model.appearance) {
+                    ForEach(AppearanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            } footer: {
+                Text("System follows the setting in macOS. Light and Dark apply to Smart Disk only.")
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
