@@ -1,19 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// One calm look for the whole app: white cards on a soft canvas, one baby-blue accent.
+/// White surfaces, a quiet gray sidebar and a restrained green accent.
 /// Every color has a light and a dark value, so the app follows the system appearance.
 enum Theme {
-    /// Text, icons and lines. Baby blue is too pale to read on white, so light mode uses a deeper sky blue.
-    static let accent = Color(light: 0x2F8ACB, dark: 0x9ED8F7)
-    static let accentSoft = Color(light: 0xE6F4FC, dark: 0x1C3240)
-    /// Baby blue for filled shapes, with `onAccent` for what sits on top.
-    static let accentFill = Color(light: 0x9ED8F7, dark: 0x9ED8F7)
-    static let onAccent = Color(light: 0x0E3A55, dark: 0x0E3A55)
-    static let canvas = Color(light: 0xF6F6F9, dark: 0x161618)
+    static let accent = Color(light: 0x278567, dark: 0x7CCDB0)
+    static let accentSoft = Color(light: 0xEDF6F1, dark: 0x20392F)
+    static let accentFill = Color(light: 0x278567, dark: 0x7CCDB0)
+    static let onAccent = Color(light: 0xFFFFFF, dark: 0x123B2D)
+    static let canvas = Color(light: 0xF8F9F8, dark: 0x171A18)
     static let surface = Color(light: 0xFFFFFF, dark: 0x1F1F22)
-    static let surfaceMuted = Color(light: 0xF9F9FB, dark: 0x252528)
-    static let border = Color(light: 0xE6E6EC, dark: 0x323236)
+    static let surfaceMuted = Color(light: 0xF5F6F5, dark: 0x252826)
+    static let navigationSelection = Color(light: 0xEFEFEF, dark: 0x2B302D)
+    static let border = Color(light: 0xE7E9E7, dark: 0x343A36)
     static let danger = Color(light: 0xE5484D, dark: 0xFF6369)
     static let success = Color(light: 0x18A058, dark: 0x3DD68C)
     static let warning = Color(light: 0xD97706, dark: 0xF5A524)
@@ -72,10 +71,10 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.callout.weight(.semibold))
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 16)
-            .frame(height: 34)
-            .background(Theme.accentFill.opacity(configuration.isPressed ? 0.8 : 1), in: .capsule)
+            .frame(height: 36)
+            .background(Theme.accentFill.opacity(configuration.isPressed ? 0.8 : 1), in: .rect(cornerRadius: 8))
             .opacity(isEnabled ? 1 : 0.45)
-            .contentShape(.capsule)
+            .contentShape(.rect(cornerRadius: 8))
     }
 }
 
@@ -88,11 +87,11 @@ struct SecondaryButtonStyle: ButtonStyle {
             .font(.callout.weight(.medium))
             .foregroundStyle(.primary)
             .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background(configuration.isPressed ? Theme.surfaceMuted : Theme.surface, in: .capsule)
-            .overlay(Capsule().strokeBorder(Theme.border))
+            .frame(height: 36)
+            .background(configuration.isPressed ? Theme.surfaceMuted : Theme.surface, in: .rect(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
             .opacity(isEnabled ? 1 : 0.45)
-            .contentShape(.capsule)
+            .contentShape(.rect(cornerRadius: 8))
     }
 }
 
@@ -160,9 +159,9 @@ struct SearchField: View {
         }
         .font(.callout)
         .padding(.horizontal, 12)
-        .frame(height: 34)
-        .background(Theme.surface, in: .capsule)
-        .overlay(Capsule().strokeBorder(Theme.border))
+        .frame(height: 38)
+        .background(Theme.surfaceMuted, in: .rect(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
     }
 }
 

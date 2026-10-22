@@ -10,19 +10,25 @@ struct ContentView: View {
         HStack(spacing: 0) {
             SidebarView(showingNewFolder: $showingNewFolder)
                 .frame(width: 252)
-            Rectangle().fill(Theme.border).frame(width: 1)
-            detail
-                .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.canvas)
-            if model.selectedItemID != nil {
-                Rectangle().fill(Theme.border).frame(width: 1)
-                InspectorView()
-                    .frame(width: 320)
-                    .frame(maxHeight: .infinity)
-                    .background(Theme.surface)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            HStack(spacing: 0) {
+                detail
+                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                if model.selectedItemID != nil {
+                    Rectangle().fill(Theme.border).frame(width: 1)
+                    InspectorView()
+                        .frame(width: 292)
+                        .frame(maxHeight: .infinity)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
+            .background(Theme.surface)
+            .clipShape(.rect(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.border))
+            .padding(.top, 36)
+            .padding(.trailing, 12)
+            .padding(.bottom, 12)
         }
+        .background(Theme.canvas)
         .animation(.snappy(duration: 0.25), value: model.selectedItemID != nil)
         .ignoresSafeArea(edges: .top)
         .tint(Theme.accent)
@@ -95,25 +101,45 @@ struct PageHeader<Actions: View, Subtitle: View>: View {
     var title: String
     @ViewBuilder var subtitle: Subtitle
     @ViewBuilder var actions: Actions
+    @State private var width: CGFloat = 1000
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(eyebrow, systemImage: eyebrowSymbol)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(Theme.accent)
-            HStack(alignment: .center, spacing: 12) {
-                Text(title)
-                    .font(.system(size: 28, weight: .bold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 16)
-                actions
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 10) {
+                Label("On this Mac", systemImage: "lock")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Text(eyebrow)
+            }
+            .font(.callout)
+            if width >= 740 {
+                HStack(spacing: 16) {
+                    pageTitle
+                    Spacer(minLength: 20)
+                    actions
+                        .fixedSize()
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    pageTitle
+                    HStack(spacing: 8) { actions }
+                }
             }
             subtitle
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Rectangle().fill(Theme.border).frame(height: 1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    private var pageTitle: some View {
+        Text(title)
+            .font(.system(size: 28, weight: .bold))
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 }
 

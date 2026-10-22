@@ -11,14 +11,14 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 0) {
             AppLogo()
                 .padding(.top, 46) // clears the window buttons
-                .padding(.bottom, 18)
+                .padding(.bottom, 30)
             SearchField(prompt: "Search all files…", text: $model.searchText) {
                 guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                 model.selection = .search
                 Task { await model.runSearch() }
             }
             .help("Search by meaning, e.g. huurcontract")
-            .padding(.bottom, 14)
+            .padding(.bottom, 28)
             .task(id: model.searchText) {
                 // Search while typing, once the user pauses.
                 guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -32,9 +32,9 @@ struct SidebarView: View {
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 5) {
                     if let status = model.status {
-                        SidebarSection("Categories")
+                        SidebarSection("General")
                         ForEach(status.categories) { folder in
                             NavRow(folder: folder)
                                 .contextMenu {
@@ -44,7 +44,7 @@ struct SidebarView: View {
                                 }
                         }
                         SidebarSection("My Smart Folders")
-                            .padding(.top, 14)
+                            .padding(.top, 26)
                         ForEach(status.smartFolders) { folder in
                             NavRow(folder: folder)
                                 .contextMenu { smartFolderMenu(folder) }
@@ -64,7 +64,7 @@ struct SidebarView: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 14)
         .frame(maxHeight: .infinity)
-        .background(Theme.surface)
+        .background(Theme.canvas)
         .alert("Rename Smart Folder", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Folder name", text: $newName)
             Button("Rename") {
@@ -99,15 +99,15 @@ struct AppLogo: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "externaldrive.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 32, height: 32)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
                 .background(
-                    LinearGradient(colors: [Theme.accentFill, Color(light: 0x6FBDEB, dark: 0x6FBDEB)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: .rect(cornerRadius: 9)
+                    LinearGradient(colors: [Color(light: 0x80D7B4, dark: 0x80D7B4), Theme.accentFill], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: .circle
                 )
             Text("Smart Disk")
-                .font(.system(size: 19, weight: .bold))
+                .font(.system(size: 22, weight: .bold))
         }
         .padding(.leading, 4)
     }
@@ -118,11 +118,11 @@ struct SidebarSection: View {
     init(_ title: String) { self.title = title }
 
     var body: some View {
-        Text(title)
+        Text(title.uppercased())
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 10)
-            .padding(.bottom, 4)
+            .padding(.bottom, 10)
     }
 }
 
@@ -141,19 +141,21 @@ struct NavRow: View {
                 Image(systemName: folder.symbol)
                     .font(.system(size: 14, weight: .medium))
                     .frame(width: 20)
-                    .foregroundStyle(selected ? Theme.accent : .secondary)
+                    .foregroundStyle(.secondary)
                 Text(folder.name)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if folder.count > 0 {
-                    CountBadge(text: folder.count.formatted(), highlighted: selected)
+                    Text(folder.count.formatted())
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
-            .font(.body.weight(selected ? .semibold : .medium))
-            .foregroundStyle(selected ? Theme.accent : .primary)
-            .padding(.horizontal, 10)
-            .frame(height: 36)
-            .background(selected ? Theme.accentSoft : hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 10))
+            .font(.system(size: 14, weight: selected ? .semibold : .regular))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .frame(height: 42)
+            .background(selected ? Theme.navigationSelection : hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 8))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

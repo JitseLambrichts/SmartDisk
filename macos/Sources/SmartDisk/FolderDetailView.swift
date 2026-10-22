@@ -8,7 +8,7 @@ struct FolderDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(
-                eyebrow: folder.isSmart ? "Smart Folder" : "Category",
+                eyebrow: folder.isSmart ? "Smart Folders" : "My Files",
                 eyebrowSymbol: folder.isSmart ? "sparkle.magnifyingglass" : folder.symbol,
                 title: folder.name
             ) {
@@ -63,7 +63,7 @@ struct FolderDetailView: View {
             }
         }
         .padding(.horizontal, 28)
-        .padding(.top, 40)
+        .padding(.top, 28)
         .padding(.bottom, 24)
     }
 
@@ -122,8 +122,35 @@ struct Chip: View {
 
 // MARK: - File list
 
-enum FileSort: Equatable {
+enum FileSort: CaseIterable {
     case name, date, amount, match
+
+    var title: String {
+        switch self {
+        case .name: "Name"
+        case .date: "Date"
+        case .amount: "Amount"
+        case .match: "Fits"
+        }
+    }
+}
+
+/// Tabs only narrow the displayed list; they never change a smart folder's query.
+enum FileTab: String, CaseIterable {
+    case all = "All Files", documents = "Documents", images = "Images", media = "Media"
+
+    func matches(_ item: Item) -> Bool {
+        let ext = (item.name as NSString).pathExtension.lowercased()
+        let isImage = item.kind == "image" || ["jpg", "jpeg", "png", "heic", "heif", "gif", "webp", "tiff", "tif", "svg", "bmp", "avif"].contains(ext)
+        let isMedia = ["audio", "video"].contains(item.kind) || ["mp3", "m4a", "wav", "aiff", "flac", "ogg", "mp4", "mov", "m4v", "avi", "mkv", "webm"].contains(ext)
+        switch self {
+        case .all: return true
+        case .documents:
+            return ["pdf", "text", "document"].contains(item.kind) || ["pdf", "txt", "md", "doc", "docx", "pages", "rtf", "odt", "xls", "xlsx", "numbers", "csv", "ppt", "pptx", "key"].contains(ext)
+        case .images: return isImage
+        case .media: return isMedia
+        }
+    }
 }
 
 /// A property a file list can be narrowed down by.
@@ -216,7 +243,7 @@ private enum Column {
     static let date: CGFloat = 116
     static let amount: CGFloat = 100
     static let match: CGFloat = 96
-    static let actions: CGFloat = 128
+    static let actions: CGFloat = 80
 }
 
 /// The white card with the files of a folder or a search.
@@ -229,86 +256,165 @@ struct FilesCard<Empty: View>: View {
     @ViewBuilder var empty: Empty
     @State private var filter = ""
     @State private var filters = FileFilters()
-    @State private var sort = FileSort.match
-    @State private var ascending = false
+    @State private var sort = FileSort.name
+    @State private var ascending = true
+    @State private var tab = FileTab.all
+    @State private var showingFilters = false
     @State private var width: CGFloat = 1000
 
     /// Narrow (e.g. with file details open): date and amount move under the name.
-    private var compact: Bool { width < 820 }
+    private var compact: Bool { width < 760 }
 
     var body: some View {
         let named = filtered
         let shown = sorted(named.filter { filters.matches($0) })
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text("Files").font(.headline)
-                        CountBadge(
-                            text: shown.count == items.count
-                                ? "\(items.count.formatted()) total"
-                                : "\(shown.count.formatted()) of \(items.count.formatted())",
-                            highlighted: true
-                        )
+            HStack(spacing: 28) {
+                ForEach(FileTab.allCases, id: \.self) { option in
+                    Button {
+                        tab = option
+                    } label: {
+                        Text(option.rawValue)
+                            .font(.system(size: 14, weight: tab == option ? .medium : .regular))
+                            .foregroundStyle(tab == option ? .primary : .secondary)
+                            .padding(.vertical, 14)
+                            .overlay(alignment: .bottom) {
+                                if tab == option {
+                                    Rectangle().fill(Theme.accent).frame(height: 2)
+                                }
+                            }
+                            .contentShape(.rect)
                     }
-                    Text("Click a file to see why it is here. Double-click to open it.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(tab == option ? .isSelected : [])
                 }
-                Spacer()
-                SearchField(prompt: "Filter by name…", text: $filter)
-                    .frame(maxWidth: 240)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Theme.border).frame(height: 1).offset(y: 1)
+            }
+            .padding(.bottom, 20)
 
-            FilterBar(items: named, filters: $filters)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 14)
-
-            Rectangle().fill(Theme.border).frame(height: 1)
-            header
-            Rectangle().fill(Theme.border).frame(height: 1)
-
-            if items.isEmpty && isLoading {
-                ProgressView("Looking…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if items.isEmpty {
-                empty.frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if shown.isEmpty && filters.isActive {
-                ContentUnavailableView {
-                    Label("No files match these filters", systemImage: "line.3.horizontal.decrease.circle")
-                } description: {
-                    Text("Try fewer filters, or show everything again.")
-                } actions: {
-                    Button("Clear Filters") {
-                        filters = FileFilters()
-                        filter = ""
-                    }
-                    .buttonStyle(.secondary)
+            HStack(spacing: 10) {
+                SearchField(prompt: "Search files in this folder…", text: $filter)
+                Button {
+                    showingFilters.toggle()
+                } label: {
+                    Label(filters.isActive ? "Filters on" : "Filter", systemImage: "line.3.horizontal.decrease")
                 }
-                .frame(maxHeight: .infinity)
-            } else if shown.isEmpty && !filter.isEmpty {
-                ContentUnavailableView.search(text: filter)
+                .buttonStyle(.secondary)
+                .accessibilityValue(showingFilters ? "Expanded" : "Collapsed")
+                Button {
+                    Task {
+                        await model.refreshStatus()
+                        await model.reloadSelection(keepExplanation: true)
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 38)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh files")
+                .accessibilityLabel("Refresh files")
+            }
+            .padding(.bottom, 18)
+
+            if showingFilters {
+                FilterBar(items: named, filters: $filters, showsAllFacets: true)
+                    .padding(.bottom, 18)
+            }
+
+            HStack(spacing: 10) {
+                Text("Sort by:").foregroundStyle(.secondary)
+                Menu {
+                    ForEach(FileSort.allCases, id: \.self) { option in
+                        Button {
+                            sort = option
+                            ascending = option == .name
+                        } label: {
+                            if sort == option {
+                                Label(option.title, systemImage: "checkmark")
+                            } else {
+                                Text(option.title)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(sort.title)
+                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                Button { ascending.toggle() } label: {
+                    Image(systemName: ascending ? "arrow.up" : "arrow.down")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 28)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help(ascending ? "Sort descending" : "Sort ascending")
+                .accessibilityLabel(ascending ? "Sort descending" : "Sort ascending")
+                Spacer(minLength: 0)
+                Text(shown.count == items.count ? "\(shown.count.formatted()) files" : "\(shown.count.formatted()) of \(items.count.formatted()) files")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .font(.callout)
+            .padding(.bottom, 16)
+
+            VStack(spacing: 0) {
+                Rectangle().fill(Theme.border).frame(height: 1)
+                header
+                Rectangle().fill(Theme.border).frame(height: 1)
+
+                if items.isEmpty && isLoading {
+                    ProgressView("Looking…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if items.isEmpty {
+                    empty.frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if shown.isEmpty && (filters.isActive || tab != .all) {
+                    ContentUnavailableView {
+                        Label("No files match these filters", systemImage: "line.3.horizontal.decrease.circle")
+                    } description: {
+                        Text("Try fewer filters, or show everything again.")
+                    } actions: {
+                        Button("Clear Filters") {
+                            filters = FileFilters()
+                            filter = ""
+                            tab = .all
+                        }
+                        .buttonStyle(.secondary)
+                    }
                     .frame(maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(shown) { item in
-                            FileRow(item: item, folder: folder, compact: compact)
-                            Rectangle().fill(Theme.border.opacity(0.7)).frame(height: 1)
+                } else if shown.isEmpty && !filter.isEmpty {
+                    ContentUnavailableView.search(text: filter)
+                        .frame(maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(shown) { item in
+                                FileRow(item: item, folder: folder, compact: compact)
+                                Rectangle().fill(Theme.border.opacity(0.7)).frame(height: 1)
+                            }
                         }
                     }
                 }
             }
+            .frame(maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
-        .card()
-        .clipShape(.rect(cornerRadius: Theme.cardRadius))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: folder) {
             filters = FileFilters()
             filter = ""
+            tab = .all
+            showingFilters = false
         }
     }
 
@@ -358,8 +464,9 @@ struct FilesCard<Empty: View>: View {
 
     private var filtered: [Item] {
         let text = filter.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return items }
-        return items.filter { $0.name.localizedCaseInsensitiveContains(text) || $0.origin.localizedCaseInsensitiveContains(text) }
+        return items.filter {
+            tab.matches($0) && (text.isEmpty || $0.name.localizedCaseInsensitiveContains(text) || $0.origin.localizedCaseInsensitiveContains(text))
+        }
     }
 
     private func sorted(_ items: [Item]) -> [Item] {
@@ -391,15 +498,29 @@ struct FilterBar: View {
     var body: some View {
         let facets = showsAllFacets ? FileFacet.allCases : Self.facets(of: items, filters)
         if !facets.isEmpty {
-            HStack(spacing: 8) {
-                ForEach(facets, id: \.self) { facet in
-                    FilterMenu(facet: facet, items: items.filter { filters.matches($0, ignoring: facet) }, filters: $filters)
+            VStack(alignment: .leading, spacing: 10) {
+                ViewThatFits(in: .horizontal) {
+                    menus(facets)
+                    VStack(alignment: .leading, spacing: 8) {
+                        menus(Array(facets.prefix(2)))
+                        menus(Array(facets.dropFirst(2)))
+                    }
                 }
                 if filters.isActive {
                     Button("Clear Filters") { filters = FileFilters() }
                         .buttonStyle(TextActionStyle(color: Theme.accent))
-                        .padding(.leading, 6)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func menus(_ facets: [FileFacet]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(facets, id: \.self) { facet in
+                FilterMenu(facet: facet, items: items.filter { filters.matches($0, ignoring: facet) }, filters: $filters)
+            }
+            if !facets.isEmpty {
                 Spacer()
             }
         }
@@ -526,7 +647,10 @@ struct FileRow: View {
         let selected = model.selectedItemID == item.id
         HStack(spacing: 12) {
             HStack(spacing: 12) {
-                FileTypeIcon(name: item.name, kind: item.kind)
+                FileIcon(path: item.original)
+                    .scaledToFit()
+                    .frame(width: 24, height: 28)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name)
                         .font(.callout.weight(.medium))
@@ -562,21 +686,32 @@ struct FileRow: View {
             ConfidenceTag(score: item.score)
                 .frame(width: Column.match, alignment: .leading)
 
-            HStack(spacing: 14) {
-                if let folder {
-                    Button("Not here") {
-                        Task { await model.label(item, in: folder, belongs: false) }
-                    }
-                    .buttonStyle(TextActionStyle(color: Theme.danger))
-                    .help("Remove it from this folder only. The original file stays where it is.")
-                }
+            HStack(spacing: 12) {
                 Button("Open") { model.open(item) }
                     .buttonStyle(TextActionStyle(color: Theme.accent))
+                Menu {
+                    Button("Show Original in Finder") { model.reveal(item) }
+                    if let folder {
+                        Divider()
+                        Button("Doesn't Belong Here") {
+                            Task { await model.label(item, in: folder, belongs: false) }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 28)
+                        .contentShape(.rect)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel("More actions for \(item.name)")
             }
             .frame(width: Column.actions, alignment: .trailing)
         }
         .padding(.horizontal, 18)
-        .frame(height: 58)
+        .frame(height: 64)
         .background(selected ? Theme.accentSoft.opacity(0.7) : hovering ? Theme.surfaceMuted : .clear)
         .overlay(alignment: .leading) {
             if selected {
@@ -675,7 +810,7 @@ struct SearchResultsView: View {
             }
         }
         .padding(.horizontal, 28)
-        .padding(.top, 40)
+        .padding(.top, 28)
         .padding(.bottom, 24)
     }
 }
