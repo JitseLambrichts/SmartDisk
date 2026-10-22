@@ -61,7 +61,8 @@ final class AppModel {
             Task { @MainActor in await self?.tick() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.stopDaemon() }
+            // Only signal the drive; it shuts itself down. Waiting for it here blocked the quit.
+            MainActor.assumeIsolated { self?.daemon?.terminate() }
         }
     }
 
@@ -94,8 +95,12 @@ final class AppModel {
         process.arguments = ["daemon", useFuse ? "--fuse" : "--mirror"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { [weak self] _ in
-            Task { @MainActor in self?.daemon = nil }
+        process.terminationHandler = { [weak self] ended in
+            let id = ObjectIdentifier(ended)
+            // A restart may already have started the next drive; leave that one alone.
+            Task { @MainActor in
+                if let self, let daemon = self.daemon, ObjectIdentifier(daemon) == id { self.daemon = nil }
+            }
         }
         do {
             try process.run()
@@ -105,16 +110,21 @@ final class AppModel {
         }
     }
 
-    func stopDaemon() {
-        daemon?.terminate()
-        daemon?.waitUntilExit()
+    /// Stops the drive and returns once it has exited, or after `timeout`.
+    /// Polls instead of `waitUntilExit()`: on the main thread that can hang even after the drive is gone.
+    func stopDaemon(timeout: Duration = .seconds(120)) async {
+        guard let process = daemon else { return }
         daemon = nil
+        process.terminate()
+        let deadline = ContinuousClock.now + timeout
+        while process.isRunning, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     func restartDaemon() {
-        stopDaemon()
         Task {
-            try? await Task.sleep(for: .milliseconds(400))
+            await stopDaemon()
             startDaemon()
             await refreshStatus()
         }
