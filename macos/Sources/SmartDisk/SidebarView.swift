@@ -100,10 +100,10 @@ struct AppLogo: View {
         HStack(spacing: 10) {
             Image(systemName: "externaldrive.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .frame(width: 32, height: 32)
                 .background(
-                    LinearGradient(colors: [Theme.accent, Color(light: 0x8E4EC6, dark: 0xBF7AF0)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [Theme.accentFill, Color(light: 0x6FBDEB, dark: 0x6FBDEB)], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: .rect(cornerRadius: 9)
                 )
             Text("Smart Disk")

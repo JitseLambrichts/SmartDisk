@@ -1,11 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// One calm look for the whole app: white cards on a soft canvas, one violet accent.
+/// One calm look for the whole app: white cards on a soft canvas, one baby-blue accent.
 /// Every color has a light and a dark value, so the app follows the system appearance.
 enum Theme {
-    static let accent = Color(light: 0x5B4FE9, dark: 0x8B82FF)
-    static let accentSoft = Color(light: 0xEFEDFD, dark: 0x2B2850)
+    /// Text, icons and lines. Baby blue is too pale to read on white, so light mode uses a deeper sky blue.
+    static let accent = Color(light: 0x2F8ACB, dark: 0x9ED8F7)
+    static let accentSoft = Color(light: 0xE6F4FC, dark: 0x1C3240)
+    /// Baby blue for filled shapes, with `onAccent` for what sits on top.
+    static let accentFill = Color(light: 0x9ED8F7, dark: 0x9ED8F7)
+    static let onAccent = Color(light: 0x0E3A55, dark: 0x0E3A55)
     static let canvas = Color(light: 0xF6F6F9, dark: 0x161618)
     static let surface = Color(light: 0xFFFFFF, dark: 0x1F1F22)
     static let surfaceMuted = Color(light: 0xF9F9FB, dark: 0x252528)
@@ -66,10 +70,10 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.callout.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 16)
             .frame(height: 34)
-            .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1), in: .capsule)
+            .background(Theme.accentFill.opacity(configuration.isPressed ? 0.8 : 1), in: .capsule)
             .opacity(isEnabled ? 1 : 0.45)
             .contentShape(.capsule)
     }
