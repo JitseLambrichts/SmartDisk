@@ -9,6 +9,7 @@ pub mod db;
 pub mod embed;
 pub mod extract;
 pub mod facts;
+pub mod find;
 pub mod helper;
 pub mod index;
 pub mod query;

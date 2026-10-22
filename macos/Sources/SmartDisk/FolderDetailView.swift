@@ -256,6 +256,9 @@ struct FilesCard<Empty: View>: View {
     var isLoading = false
     @ViewBuilder var empty: Empty
     @State private var filter = ""
+    /// Files whose text holds the search words, with a snippet each, and the search they belong to.
+    @State private var textHits: (query: String, snippets: [Int64: String]) = ("", [:])
+    @State private var searchingText = false
     @State private var filters = FileFilters()
     @State private var sort = FileSort.name
     @State private var ascending = true
@@ -297,7 +300,7 @@ struct FilesCard<Empty: View>: View {
             .padding(.bottom, 20)
 
             HStack(spacing: 10) {
-                SearchField(prompt: "Search files in this folder…", text: $filter)
+                SearchField(prompt: searchPrompt, text: $filter)
                 Button {
                     showingFilters.toggle()
                 } label: {
@@ -393,14 +396,18 @@ struct FilesCard<Empty: View>: View {
                         .buttonStyle(.secondary)
                     }
                     .frame(maxHeight: .infinity)
+                } else if shown.isEmpty && !filter.isEmpty && searchingText {
+                    ProgressView("Searching inside documents…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if shown.isEmpty && !filter.isEmpty {
                     ContentUnavailableView.search(text: filter)
                         .frame(maxHeight: .infinity)
                 } else {
+                    let snippets = currentSnippets
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(shown) { item in
-                                FileRow(item: item, folder: folder, compact: compact)
+                                FileRow(item: item, folder: folder, compact: compact, snippet: snippets[item.id])
                                 Rectangle().fill(Theme.border.opacity(0.7)).frame(height: 1)
                             }
                         }
@@ -417,6 +424,40 @@ struct FilesCard<Empty: View>: View {
             tab = .all
             showingFilters = false
         }
+        .task(id: "\(folder ?? "")\u{0}\(filter)") { await searchText() }
+    }
+
+    private var searchesText: Bool { model.status?.config.storeFullText != false }
+
+    private var searchPrompt: String {
+        switch (searchesText, folder != nil) {
+        case (true, true): "Search names and text in this folder…"
+        case (true, false): "Search names and text…"
+        case (false, true): "Search files in this folder…"
+        case (false, false): "Search files…"
+        }
+    }
+
+    /// Text hits for what is typed now; older ones are dropped so they never show under a new search.
+    private var currentSnippets: [Int64: String] {
+        textHits.query == filter.trimmingCharacters(in: .whitespaces) ? textHits.snippets : [:]
+    }
+
+    /// Looks inside the documents too, once typing pauses. Names still filter right away.
+    private func searchText() async {
+        let text = filter.trimmingCharacters(in: .whitespaces)
+        guard text.count >= 2, searchesText, let client = model.client else {
+            textHits = (text, [:])
+            searchingText = false
+            return
+        }
+        searchingText = true
+        defer { if !Task.isCancelled { searchingText = false } }
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        let hits = (try? await client.grep(text, folder: folder)) ?? []
+        guard !Task.isCancelled else { return }
+        textHits = (text, Dictionary(hits.map { ($0.fileId, $0.snippet) }, uniquingKeysWith: { first, _ in first }))
     }
 
     private var header: some View {
@@ -465,8 +506,10 @@ struct FilesCard<Empty: View>: View {
 
     private var filtered: [Item] {
         let text = filter.trimmingCharacters(in: .whitespaces)
+        let inText = currentSnippets
         return items.filter {
-            tab.matches($0) && (text.isEmpty || $0.name.localizedCaseInsensitiveContains(text) || $0.origin.localizedCaseInsensitiveContains(text))
+            tab.matches($0) && (text.isEmpty || $0.name.localizedCaseInsensitiveContains(text)
+                || $0.origin.localizedCaseInsensitiveContains(text) || inText[$0.id] != nil)
         }
     }
 
@@ -630,6 +673,8 @@ struct FileRow: View {
     var item: Item
     var folder: String?
     var compact = false
+    /// Words around a search hit inside the document.
+    var snippet: String?
     @State private var hovering = false
 
     private var details: String {
@@ -661,6 +706,13 @@ struct FileRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    if let snippet, !snippet.isEmpty {
+                        Label(snippet, systemImage: "text.magnifyingglass")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .help(snippet)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -712,7 +764,7 @@ struct FileRow: View {
             .frame(width: Column.actions, alignment: .trailing)
         }
         .padding(.horizontal, 18)
-        .frame(height: 64)
+        .frame(height: snippet?.isEmpty == false ? 78 : 64) // a search snippet adds a line
         .background(selected ? Theme.accentSoft.opacity(0.7) : hovering ? Theme.surfaceMuted : .clear)
         .overlay(alignment: .leading) {
             if selected {

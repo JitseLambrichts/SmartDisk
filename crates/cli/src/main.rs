@@ -15,7 +15,7 @@ use slim_core::helper::Helper;
 use slim_core::index::Indexer;
 use slim_core::query::{self, FileFilter, ViewQuery};
 use slim_core::volume::{self, DirKind, Tree};
-use slim_core::{views, why};
+use slim_core::{find, views, why};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -51,6 +51,13 @@ enum Command {
     Ls { folder: String },
     /// Search without saving: what would a folder with this name contain?
     Query { text: String },
+    /// Find files whose text contains all these words.
+    Grep {
+        text: String,
+        /// Only look in this folder of the drive.
+        #[arg(long)]
+        folder: Option<String>,
+    },
     /// Show how a folder name is read as a query.
     Parse { name: String },
     /// Create a smart folder (same as mkdir on the drive), or bring back a removed category.
@@ -351,6 +358,24 @@ fn main() -> Result<()> {
                 }
             }
             print(json, &items, print_items)
+        }
+        Command::Grep { text, folder } => {
+            let db = Db::open_default()?;
+            let ids: Vec<i64> = match &folder {
+                Some(name) => {
+                    let tree = Tree::build(&db, &config)?;
+                    let d = tree.dir(name).ok_or_else(|| anyhow!("no folder named \"{name}\" (see `slim tree`)"))?;
+                    d.entries.iter().map(|e| e.file_id).collect()
+                }
+                None => db.files()?.iter().map(|f| f.id).collect(),
+            };
+            let hits = find::find_text(&db, &ids, &text)?;
+            print(json, &hits, |hits| {
+                for h in hits {
+                    let name = db.file_by_id(h.file_id).ok().flatten().map(|f| f.file_name()).unwrap_or_default();
+                    println!("{name}\n    {}", h.snippet);
+                }
+            })
         }
         Command::Query { text } => {
             let db = Db::open_default()?;

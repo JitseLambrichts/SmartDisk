@@ -70,6 +70,10 @@ struct SlimClient: Sendable {
     func status() async throws -> DriveStatus { try await decode(DriveStatus.self, ["status"]) }
     func list(_ folder: String) async throws -> [Item] { try await decode([Item].self, ["ls", folder]) }
     func query(_ text: String) async throws -> QueryResult { try await decode(QueryResult.self, ["query", text]) }
+    /// Files whose stored text holds all these words, in one folder or everywhere.
+    func grep(_ text: String, folder: String?) async throws -> [TextHit] {
+        try await decode([TextHit].self, ["grep", text] + (folder.map { ["--folder", $0] } ?? []))
+    }
     func parse(_ name: String) async throws -> ParseResult { try await decode(ParseResult.self, ["parse", name]) }
     func why(_ original: String) async throws -> Explanation { try await decode(Explanation.self, ["why", original]) }
     func log(limit: Int = 100) async throws -> [LogRow] { try await decode([LogRow].self, ["log", "--limit", "\(limit)"]) }

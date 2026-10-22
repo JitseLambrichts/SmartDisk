@@ -82,6 +82,12 @@ struct Item: Decodable, Equatable, Hashable, Identifiable {
     var displayDate: String { docDate ?? fileDate }
 }
 
+/// A file whose text holds the words searched for, with the words around them.
+struct TextHit: Decodable {
+    var fileId: Int64
+    var snippet: String
+}
+
 struct QueryResult: Decodable {
     var chips: [String]
     var items: [Item]
