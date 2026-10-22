@@ -47,6 +47,7 @@ struct SidebarView: View {
                             NavRow(folder: folder, compact: compact)
                                 .contextMenu {
                                     Button("Show in Finder") { model.openDrive(folder.name) }
+                                    Button("Change Icon…") { model.folderToChangeIcon = folder }
                                     Divider()
                                     Button("Remove Category…", role: .destructive) { model.folderToRemove = folder }
                                 }
@@ -99,6 +100,7 @@ struct SidebarView: View {
             newName = folder.name
             renaming = folder
         }
+        Button("Change Icon…") { model.folderToChangeIcon = folder }
         Button("Remove Smart Folder…", role: .destructive) { model.folderToRemove = folder }
     }
 }
@@ -198,7 +200,7 @@ struct NavRow: View {
             model.selection = .folder(folder.name)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: folder.symbol)
+                Image(systemName: model.symbol(for: folder))
                     .font(.system(size: 14, weight: .medium))
                     .frame(width: 20)
                     .foregroundStyle(compact && selected ? .primary : .secondary)

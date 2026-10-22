@@ -51,6 +51,8 @@ final class AppModel {
     var errorMessage: String?
     /// A folder waiting for the user to confirm its removal.
     var folderToRemove: Folder?
+    /// A folder whose icon is being picked.
+    var folderToChangeIcon: Folder?
     var categories: [CategoryInfo] = []
     var log: [LogRow] = []
 
@@ -60,6 +62,12 @@ final class AppModel {
 
     var sidebarExpanded: Bool {
         didSet { UserDefaults.standard.set(sidebarExpanded, forKey: "sidebarExpanded") }
+    }
+
+    /// Icons people picked, by folder name. SF Symbols only exist in the app,
+    /// so the choice lives here and not in the drive's config.
+    var folderSymbols: [String: String] {
+        didSet { UserDefaults.standard.set(folderSymbols, forKey: "folderSymbols") }
     }
 
     var appearance: AppearanceMode {
@@ -77,7 +85,18 @@ final class AppModel {
         driveMode = DriveMode(rawValue: UserDefaults.standard.string(forKey: "driveMode") ?? "") ?? .mirror
         appearance = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system
         sidebarExpanded = UserDefaults.standard.object(forKey: "sidebarExpanded") as? Bool ?? true
+        folderSymbols = UserDefaults.standard.dictionary(forKey: "folderSymbols") as? [String: String] ?? [:]
         client = SlimClient.locate()
+    }
+
+    /// The icon to show for a folder: the one picked, else its own.
+    func symbol(for folder: Folder) -> String {
+        folderSymbols[folder.name] ?? folder.symbol
+    }
+
+    /// Picks an icon for a folder; nil goes back to its own.
+    func setSymbol(_ symbol: String?, for name: String) {
+        folderSymbols[name] = symbol
     }
 
     // MARK: Lifecycle
@@ -210,10 +229,11 @@ final class AppModel {
         isSearching = false
     }
 
-    func createSmartFolder(_ name: String, filters: FileFilters = FileFilters()) async -> Bool {
+    func createSmartFolder(_ name: String, filters: FileFilters = FileFilters(), symbol: String? = nil) async -> Bool {
         guard let client else { return false }
         do {
             try await client.mkdir(name, filters: filters)
+            setSymbol(symbol, for: name)
             await refreshStatus()
             selection = .folder(name)
             await reloadSelection()
@@ -227,8 +247,11 @@ final class AppModel {
     /// Removes a smart folder or hides a category. No file is touched either way.
     func removeFolder(_ name: String) async {
         guard let client else { return }
+        // A hidden category keeps its icon for when it comes back; a removed smart folder is gone.
+        let isSmart = status?.smartFolders.contains { $0.name == name } ?? false
         do {
             try await client.rmdir(name)
+            if isSmart { setSymbol(nil, for: name) }
             await refreshStatus()
             if selection == .folder(name) { selection = status?.folders.first.map { .folder($0.name) } }
             await reloadSelection()
@@ -254,6 +277,7 @@ final class AppModel {
         guard let client, !newName.isEmpty, newName != name else { return }
         do {
             try await client.rename(name, to: newName)
+            if let symbol = folderSymbols.removeValue(forKey: name) { setSymbol(symbol, for: newName) }
             await refreshStatus()
             selection = .folder(newName)
             await reloadSelection()

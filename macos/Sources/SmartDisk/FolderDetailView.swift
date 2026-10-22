@@ -9,7 +9,7 @@ struct FolderDetailView: View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(
                 eyebrow: folder.isSmart ? "Smart Folders" : "My Files",
-                eyebrowSymbol: folder.isSmart ? "sparkle.magnifyingglass" : folder.symbol,
+                eyebrowSymbol: model.symbol(for: folder),
                 title: folder.name
             ) {
                 if folder.isSmart {
@@ -39,6 +39,7 @@ struct FolderDetailView: View {
                 Menu {
                     Button("Show in Finder") { model.openDrive(folder.name) }
                         .disabled(model.drivePath == nil)
+                    Button("Change Icon…") { model.folderToChangeIcon = folder }
                     Divider()
                     Button(folder.isSmart ? "Remove Smart Folder…" : "Remove Category…", role: .destructive) {
                         model.folderToRemove = folder
@@ -78,7 +79,7 @@ struct FolderDetailView: View {
         } else if folder.name == "ID Documents" {
             ContentUnavailableView("No ID documents found", systemImage: "person.text.rectangle", description: Text("Scans of identity cards, passports and driving licences appear here."))
         } else {
-            ContentUnavailableView("No \(folder.name.lowercased()) yet", systemImage: folder.symbol, description: Text("Files appear here once they are read and recognised."))
+            ContentUnavailableView("No \(folder.name.lowercased()) yet", systemImage: model.symbol(for: folder), description: Text("Files appear here once they are read and recognised."))
         }
     }
 }

@@ -8,6 +8,7 @@ struct NewSmartFolderSheet: View {
     @State private var preview: QueryResult?
     @State private var filters = FileFilters()
     @State private var isCreating = false
+    @State private var symbol = "sparkle.magnifyingglass"
     @FocusState private var focused: Bool
 
     private let examples = [
@@ -32,13 +33,16 @@ struct NewSmartFolderSheet: View {
                 }
             }
 
-            TextField("invoices 2026 over 100 euro", text: $name)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .padding(12)
-                .card(radius: 12)
-                .focused($focused)
-                .onSubmit(create)
+            HStack(spacing: 10) {
+                FolderIconButton(symbol: $symbol)
+                TextField("invoices 2026 over 100 euro", text: $name)
+                    .textFieldStyle(.plain)
+                    .font(.title3)
+                    .padding(12)
+                    .card(radius: 12)
+                    .focused($focused)
+                    .onSubmit(create)
+            }
 
             if name.trimmingCharacters(in: .whitespaces).isEmpty {
                 suggestions
@@ -143,7 +147,9 @@ struct NewSmartFolderSheet: View {
         guard !text.isEmpty, !isCreating else { return }
         isCreating = true
         Task {
-            if await model.createSmartFolder(text, filters: filters) { dismiss() }
+            // The default icon is not stored, so it follows the app if that ever changes.
+            let picked = symbol == "sparkle.magnifyingglass" ? nil : symbol
+            if await model.createSmartFolder(text, filters: filters, symbol: picked) { dismiss() }
             isCreating = false
         }
     }

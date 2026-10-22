@@ -25,7 +25,7 @@ struct MenuBarView: View {
                             model.openDrive(folder.name)
                         } label: {
                             HStack {
-                                Image(systemName: folder.symbol)
+                                Image(systemName: model.symbol(for: folder))
                                     .foregroundStyle(folder.isSmart ? AnyShapeStyle(.purple) : AnyShapeStyle(.tint))
                                     .frame(width: 20)
                                 Text(folder.name).lineLimit(1)

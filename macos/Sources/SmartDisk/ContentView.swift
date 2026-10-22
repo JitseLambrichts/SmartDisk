@@ -53,6 +53,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingNewFolder) {
             NewSmartFolderSheet()
         }
+        .sheet(item: Binding(get: { model.folderToChangeIcon }, set: { model.folderToChangeIcon = $0 })) { folder in
+            FolderIconSheet(folder: folder)
+        }
         .focusedSceneValue(\.newSmartFolder) { showingNewFolder = true }
         .focusedSceneValue(\.sidebarExpanded, Binding(get: { model.sidebarExpanded }, set: { model.sidebarExpanded = $0 }))
         .alert(
