@@ -1,0 +1,13 @@
+Mode: built-in image_gen (transparent_background=true)
+
+Use case: logo-brand
+Asset type: standalone SmartDisk project logo, suitable for a macOS app and website
+Primary request: Design one polished, distinctive logo symbol for SmartDisk, a private on-device macOS virtual drive whose folders automatically gather matching files without moving the originals.
+Scene/backdrop: genuinely transparent background.
+Subject: a single unified geometric emblem that elegantly combines a folder silhouette with the compact solid base of a storage drive. Use two clean interlocking rounded planes and carefully balanced negative space to subtly suggest an S and files falling into order. The emblem must read as one memorable simple shape rather than multiple separate pictograms.
+Style/medium: premium minimal brand mark, vector-like crisp edges, broad confident shapes, optical balance, restrained dimensionality from a subtle tonal shift only.
+Composition/framing: square canvas, centered standalone symbol occupying about 75 percent of the canvas with generous even transparent margins. Strong legibility at small icon sizes.
+Color palette: existing SmartDisk website violet #5B4FE9, with a restrained lighter violet accent #A79FF5 on the secondary plane.
+Text: none.
+Constraints: exactly one finished symbol; true alpha transparency outside the symbol; keep the silhouette clean and reproducible.
+Avoid: presentation boards, multiple variants, mockups, lettering, slogans, watermarks, thin circuit traces, brains, robots, sparkles, stars, magnifying glasses, clouds, padlocks, intricate detail, floating objects, photorealistic hardware, drop shadows on the canvas.

@@ -98,14 +98,22 @@ struct SidebarView: View {
 struct AppLogo: View {
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "externaldrive.fill")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(
-                    LinearGradient(colors: [Color(light: 0x80D7B4, dark: 0x80D7B4), Theme.accentFill], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: .circle
-                )
+            // The brand logo ships in the app bundle; `swift run` has no bundle, so it gets a stand-in.
+            if let logo = NSImage(named: "SmartDiskLogo") {
+                Image(nsImage: logo)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 44, height: 44)
+            } else {
+                Image(systemName: "externaldrive.fill")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        LinearGradient(colors: [Color(light: 0x80D7B4, dark: 0x80D7B4), Theme.accentFill], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: .circle
+                    )
+            }
             Text("Smart Disk")
                 .font(.system(size: 22, weight: .bold))
         }

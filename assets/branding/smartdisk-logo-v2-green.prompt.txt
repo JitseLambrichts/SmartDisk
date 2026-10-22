@@ -1,0 +1,9 @@
+Mode: built-in image_gen (transparent_background=true)
+Edit target: smartdisk-logo-v1.png
+
+Use case: precise-object-edit
+Asset type: SmartDisk project logo recoloring.
+Input image 1 is the edit target: the approved violet folder/drive logo with an S-shaped fold and a small circular indicator.
+Primary request: Change ONLY the color palette of the existing logo to match the current SmartDisk macOS app. Replace the saturated violet surfaces with restrained jade green, main brand color #278567. Replace the light lavender surfaces, ribbon, paper planes and circular indicator with pale mint green, highlight color #7CCDB0 and lighter mint tints. Translate the original gradients, illumination and subtle dimensional shading into corresponding green tones.
+Invariants: preserve precisely the existing silhouette, S-fold, drive base, folder tab, layered paper shapes, circular indicator, composition, scale, framing, proportions, rounded edges and overall design. This is only a recolor, do not redesign any element. No purple or blue remaining.
+Background: preserve genuine alpha transparency outside the symbol. No text, watermark, added objects or background.
