@@ -27,6 +27,7 @@ final class AppModel {
     var explanation: Explanation?
     var searchText = ""
     var searchResult: QueryResult?
+    var isSearching = false
     var errorMessage: String?
     var log: [LogRow] = []
 
@@ -156,7 +157,9 @@ final class AppModel {
     func runSearch() async {
         let text = searchText.trimmingCharacters(in: .whitespaces)
         guard let client, !text.isEmpty else { searchResult = nil; return }
+        isSearching = true
         searchResult = try? await client.query(text)
+        isSearching = false
     }
 
     func createSmartFolder(_ name: String) async -> Bool {
@@ -222,11 +225,17 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
-        panel.prompt = "Index Folder"
+        panel.prompt = "Include Folder"
         panel.message = "Choose folders for the Smart Disk to read. Nothing outside them is ever read."
-        guard panel.runModal() == .OK, let client else { return }
+        guard panel.runModal() == .OK else { return }
+        addWatchedFolders(panel.urls)
+    }
+
+    /// Folders chosen in the open panel or dropped onto the window.
+    func addWatchedFolders(_ urls: [URL]) {
+        guard let client, !urls.isEmpty else { return }
         Task {
-            for url in panel.urls { try? await client.addFolder(url.path) }
+            for url in urls { try? await client.addFolder(url.path) }
             await refreshStatus()
         }
     }

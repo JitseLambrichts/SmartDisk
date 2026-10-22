@@ -9,6 +9,24 @@ struct InspectorView: View {
         if let item = model.selectedItem {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    HStack {
+                        Text("File details").font(.headline)
+                        Spacer()
+                        Button {
+                            model.selectedItemID = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 26, height: 26)
+                                .background(Theme.surfaceMuted, in: .circle)
+                                .overlay(Circle().strokeBorder(Theme.border))
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.cancelAction)
+                        .help("Close")
+                    }
+                    .padding(.top, 30)
                     FileSummary(item: item)
                     if let e = model.explanation, e.fileId == item.fileId {
                         WhySection(explanation: e, item: item)
@@ -53,9 +71,9 @@ struct FileSummary: View {
             .help("The original stays here. The drive only shows it.")
             HStack {
                 Button("Open") { model.open(item) }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.primary)
                 Button("Show Original") { model.reveal(item) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
             }
         }
     }
@@ -85,7 +103,7 @@ struct WhySection: View {
                             .italic()
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+                            .background(Theme.surfaceMuted, in: .rect(cornerRadius: 10))
                     }
                 }
             }
@@ -132,7 +150,7 @@ struct PlacementCard: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundStyle(placement.included ? .green : .secondary)
+                    .foregroundStyle(placement.included ? Theme.success : .secondary)
                 Text(placement.folder).font(.headline)
                 Spacer()
                 if placement.source != "auto" {
@@ -148,7 +166,8 @@ struct PlacementCard: View {
             }
         }
         .padding(12)
-        .glassEffect(highlighted ? .regular.tint(.accentColor.opacity(0.15)) : .regular, in: .rect(cornerRadius: 12))
+        .background(highlighted ? Theme.accentSoft : Theme.surface, in: .rect(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(highlighted ? Theme.accent.opacity(0.35) : Theme.border))
     }
 
     private var icon: String {

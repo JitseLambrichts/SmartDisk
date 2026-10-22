@@ -13,7 +13,8 @@ struct SmartDiskApp: App {
                 .frame(minWidth: 1000, minHeight: 560)
                 .onAppear { model.start() }
         }
-        .windowToolbarStyle(.unified)
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
         .defaultSize(width: 1180, height: 720)
         .commands {
             CommandGroup(after: .newItem) {

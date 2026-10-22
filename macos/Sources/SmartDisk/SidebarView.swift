@@ -8,35 +8,58 @@ struct SidebarView: View {
 
     var body: some View {
         @Bindable var model = model
-        List(selection: $model.selection) {
-            if let status = model.status {
-                Section("Categories") {
-                    ForEach(status.categories) { folder in
-                        row(folder)
-                    }
-                }
-                Section {
-                    ForEach(status.smartFolders) { folder in
-                        row(folder)
-                            .contextMenu { smartFolderMenu(folder) }
-                    }
-                    Button {
-                        showingNewFolder = true
-                    } label: {
-                        Label("New Smart Folder…", systemImage: "plus")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                } header: {
-                    Text("Smart Folders")
+        VStack(alignment: .leading, spacing: 0) {
+            AppLogo()
+                .padding(.top, 46) // clears the window buttons
+                .padding(.bottom, 18)
+            SearchField(prompt: "Search all files…", text: $model.searchText) {
+                guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                model.selection = .search
+                Task { await model.runSearch() }
+            }
+            .help("Search by meaning, e.g. huurcontract")
+            .padding(.bottom, 14)
+            .task(id: model.searchText) {
+                // Search while typing, once the user pauses.
+                guard !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                if model.selection == .search {
+                    await model.runSearch()
+                } else {
+                    model.selection = .search // reloading the selection runs the search
                 }
             }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let status = model.status {
+                        SidebarSection("Categories")
+                        ForEach(status.categories) { folder in
+                            NavRow(folder: folder)
+                        }
+                        SidebarSection("My Smart Folders")
+                            .padding(.top, 14)
+                        ForEach(status.smartFolders) { folder in
+                            NavRow(folder: folder)
+                                .contextMenu { smartFolderMenu(folder) }
+                        }
+                        NewFolderRow { showingNewFolder = true }
+                    }
+                }
+            }
+            .scrollIndicators(.never)
+
+            Spacer(minLength: 10)
+            IndexingCard()
+            Rectangle().fill(Theme.border).frame(height: 1)
+                .padding(.vertical, 10)
+            DriveFooter()
         }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            DriveCard()
-                .padding(10)
-        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
+        .frame(maxHeight: .infinity)
+        .background(Theme.surface)
         .alert("Rename Smart Folder", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Folder name", text: $newName)
             Button("Rename") {
@@ -47,20 +70,8 @@ struct SidebarView: View {
             }
             Button("Cancel", role: .cancel) { renaming = nil }
         } message: {
-            Text("The new name becomes the new query; the contents are recomputed.")
+            Text("The new name becomes the new search; the folder refills itself.")
         }
-    }
-
-    private func row(_ folder: Folder) -> some View {
-        Label {
-            Text(folder.name)
-                .lineLimit(1)
-        } icon: {
-            Image(systemName: folder.symbol)
-                .foregroundStyle(folder.isSmart ? AnyShapeStyle(.purple) : AnyShapeStyle(.tint))
-        }
-        .badge(folder.count)
-        .tag(SidebarItem.folder(folder.name))
     }
 
     @ViewBuilder
@@ -81,20 +92,199 @@ struct SidebarView: View {
     }
 }
 
+struct AppLogo: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "externaldrive.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(
+                    LinearGradient(colors: [Theme.accent, Color(light: 0x8E4EC6, dark: 0xBF7AF0)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: .rect(cornerRadius: 9)
+                )
+            Text("Smart Disk")
+                .font(.system(size: 19, weight: .bold))
+        }
+        .padding(.leading, 4)
+    }
+}
+
+struct SidebarSection: View {
+    var title: String
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
+    }
+}
+
+/// One folder in the sidebar: icon, name and how many files are in it.
+struct NavRow: View {
+    @Environment(AppModel.self) private var model
+    var folder: Folder
+    @State private var hovering = false
+
+    var body: some View {
+        let selected = model.selection == .folder(folder.name)
+        Button {
+            model.selection = .folder(folder.name)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: folder.symbol)
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 20)
+                    .foregroundStyle(selected ? Theme.accent : .secondary)
+                Text(folder.name)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if folder.count > 0 {
+                    CountBadge(text: folder.count.formatted(), highlighted: selected)
+                }
+            }
+            .font(.body.weight(selected ? .semibold : .medium))
+            .foregroundStyle(selected ? Theme.accent : .primary)
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .background(selected ? Theme.accentSoft : hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 10))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+struct NewFolderRow: View {
+    var action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 20)
+                Text("New Smart Folder")
+                Spacer()
+            }
+            .font(.body.weight(.medium))
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .background(hovering ? Theme.surfaceMuted : .clear, in: .rect(cornerRadius: 10))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Type what you are looking for; the folder fills itself")
+    }
+}
+
+/// What the drive is doing right now, in one sentence.
+struct IndexingCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let s = model.status
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol(s))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(color(s))
+                    .frame(width: 24, height: 24)
+                    .background(color(s).opacity(0.12), in: .circle)
+                Text(title(s))
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .help(s.map(detail) ?? "")
+            if let s, s.isIndexing {
+                let fraction = Double(s.progressDone) / Double(max(s.progressTotal, 1))
+                Capsule()
+                    .fill(Theme.border)
+                    .frame(height: 6)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(Theme.accent)
+                                .frame(width: max(6, proxy.size.width * min(fraction, 1)))
+                        }
+                    }
+                    .animation(.snappy, value: fraction)
+                Text("\(s.progressDone.formatted()) of \(s.progressTotal.formatted()) files read")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if s?.daemonRunning == false {
+                Button("Start Smart Disk") { model.startDaemon() }
+                    .buttonStyle(.primary)
+                    .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Theme.surfaceMuted, in: .rect(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border))
+    }
+
+    private func symbol(_ s: DriveStatus?) -> String {
+        switch s?.state {
+        case "indexing": "arrow.triangle.2.circlepath"
+        case "idle": "checkmark"
+        case "paused", "battery": "pause.fill"
+        default: "exclamationmark"
+        }
+    }
+
+    private func color(_ s: DriveStatus?) -> Color {
+        switch s?.state {
+        case "indexing": Theme.accent
+        case "idle": Theme.success
+        case "paused", "battery": Theme.warning
+        default: Theme.danger
+        }
+    }
+
+    private func title(_ s: DriveStatus?) -> String {
+        switch s?.state {
+        case nil: "Connecting…"
+        case "indexing": "Reading your files"
+        case "idle": "Everything is up to date"
+        case "paused": "Paused"
+        case "battery": "Paused on battery"
+        case "stopped": "Smart Disk is stopped"
+        default: s!.state.capitalized
+        }
+    }
+
+    private func detail(_ s: DriveStatus) -> String {
+        switch s.state {
+        case "idle": return "\(s.filesIndexed.formatted()) files sorted. New files are picked up by themselves."
+        case "paused", "battery": return "Resume reading in Settings."
+        default: return "Start it to keep your folders filled."
+        }
+    }
+}
+
 /// The drive itself, pinned to the bottom of the sidebar.
-struct DriveCard: View {
+struct DriveFooter: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let status = model.status
         HStack(spacing: 10) {
             Image(systemName: status?.mount?.backend == "fuse" ? "externaldrive.fill" : "folder.fill")
-                .font(.title2)
-                .foregroundStyle(.tint)
-                .frame(width: 30)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Slim")
-                    .font(.headline)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 34, height: 34)
+                .background(Theme.accentSoft, in: .circle)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Slim drive")
+                    .font(.callout.weight(.semibold))
                 Text(subtitle(status))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -106,17 +296,21 @@ struct DriveCard: View {
                 Button {
                     model.openDrive()
                 } label: {
-                    Image(systemName: "arrow.up.forward.app")
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .help("Open the drive in Finder")
-            } else if status?.daemonRunning == false {
-                Button("Start") { model.startDaemon() }
-                    .controlSize(.small)
             }
+            SettingsLink {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Settings")
         }
-        .padding(10)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
 
     private func subtitle(_ status: DriveStatus?) -> String {

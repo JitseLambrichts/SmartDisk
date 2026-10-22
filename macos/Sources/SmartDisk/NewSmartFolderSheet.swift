@@ -24,7 +24,7 @@ struct NewSmartFolderSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .font(.largeTitle)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("New Smart Folder").font(.title2.weight(.semibold))
                     Text("The name is the search. Dutch or English.").foregroundStyle(.secondary)
@@ -35,7 +35,7 @@ struct NewSmartFolderSheet: View {
                 .textFieldStyle(.plain)
                 .font(.title3)
                 .padding(12)
-                .glassEffect(.regular, in: .rect(cornerRadius: 12))
+                .card(radius: 12)
                 .focused($focused)
                 .onSubmit(create)
 
@@ -55,7 +55,7 @@ struct NewSmartFolderSheet: View {
                 Button(action: create) {
                     if isCreating { ProgressView().controlSize(.small) } else { Text("Create Folder") }
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
             }
@@ -78,8 +78,7 @@ struct NewSmartFolderSheet: View {
             FlowLayout(spacing: 8) {
                 ForEach(examples, id: \.self) { example in
                     Button(example) { name = example }
-                        .buttonStyle(.glass)
-                        .controlSize(.small)
+                        .buttonStyle(.secondary)
                 }
             }
         }
@@ -96,7 +95,7 @@ struct NewSmartFolderSheet: View {
             VStack(spacing: 0) {
                 ForEach(preview?.items.prefix(5) ?? []) { item in
                     HStack(spacing: 8) {
-                        FileIcon(path: item.original).frame(width: 18, height: 18)
+                        FileTypeIcon(name: item.name, kind: item.kind, size: 24)
                         Text(item.name).lineLimit(1)
                         Spacer()
                         if let a = item.amount {
