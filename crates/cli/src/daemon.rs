@@ -161,6 +161,11 @@ fn index_loop_inner() -> Result<()> {
         }
         config = fresh;
         let _ = &watcher;
+        // `slim rescan` (the app's refresh button) asks for a full pass now.
+        if db.get_state("rescan_requested")?.as_deref() == Some("1") {
+            db.set_state("rescan_requested", "")?;
+            last_scan = None;
+        }
 
         if config.paused {
             db.set_state("state", "paused")?;

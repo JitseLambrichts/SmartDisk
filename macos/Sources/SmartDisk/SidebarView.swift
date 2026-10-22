@@ -265,6 +265,8 @@ struct NewFolderRow: View {
 struct IndexingCard: View {
     @Environment(AppModel.self) private var model
     var compact = false
+    /// Between asking for a check and the drive starting it.
+    @State private var checking = false
 
     var body: some View {
         let s = model.status
@@ -300,6 +302,11 @@ struct IndexingCard: View {
                 Text(title(s))
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85) // keeps the whole sentence next to the refresh button
+                Spacer(minLength: 0)
+                if s?.daemonRunning == true && s?.isIndexing == false {
+                    refreshButton
+                }
             }
             .help(s.map(detail) ?? "")
             if let s, s.isIndexing {
@@ -329,6 +336,35 @@ struct IndexingCard: View {
         .padding(10)
         .background(Theme.surfaceMuted, in: .rect(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border))
+    }
+
+    /// Checks every folder again now, instead of at the drive's next pass.
+    private var refreshButton: some View {
+        Button {
+            checking = true
+            Task {
+                await model.rescan()
+                // The drive picks the request up within a few seconds; then the card shows its progress.
+                try? await Task.sleep(for: .seconds(6))
+                checking = false
+            }
+        } label: {
+            Group {
+                if checking {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 18, height: 24)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(checking)
+        .help("Check all folders again")
+        .accessibilityLabel("Check all folders again")
     }
 
     private func symbol(_ s: DriveStatus?) -> String {

@@ -90,4 +90,6 @@ struct SlimClient: Sendable {
     func addFolder(_ path: String) async throws { _ = try await run(["folders", "add", path]) }
     func removeFolder(_ path: String) async throws { _ = try await run(["folders", "remove", path]) }
     func set(_ key: String, _ value: String) async throws { _ = try await run(["settings", "set", key, value]) }
+    /// Asks the running daemon to check every watched folder again.
+    func rescan() async throws { _ = try await run(["rescan"]) }
 }

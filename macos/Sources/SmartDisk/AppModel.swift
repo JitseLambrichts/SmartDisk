@@ -184,6 +184,15 @@ final class AppModel {
         }
     }
 
+    /// Has the drive check every watched folder again, instead of waiting for its next pass.
+    func rescan() async {
+        guard let client else { return }
+        do {
+            try await client.rescan()
+            await refreshStatus()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     // MARK: Folders & items
 
     var selectedFolder: Folder? {

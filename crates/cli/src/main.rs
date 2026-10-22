@@ -34,6 +34,8 @@ enum Command {
     Status,
     /// Index the watched folders once.
     Index,
+    /// Ask the running daemon to check every watched folder again now.
+    Rescan,
     /// Watch folders, keep the index fresh and keep the drive mounted.
     Daemon {
         /// Render the drive as a folder of links (default: ~/Slim).
@@ -311,6 +313,14 @@ fn main() -> Result<()> {
             print(json, &report, |r| {
                 println!("{} indexed, {} unchanged, {} skipped, {} failed, {} removed", r.indexed, r.unchanged, r.skipped, r.failed, r.removed)
             })
+        }
+        Command::Rescan => {
+            // The daemon owns indexing; a second indexer here would race it. It picks this up within seconds.
+            if daemon_pid().is_none() {
+                bail!("the daemon is not running: start it, or use `slim index`");
+            }
+            Db::open_default()?.set_state("rescan_requested", "1")?;
+            print(json, &json!({ "requested": true }), |_| println!("asked the daemon to check every folder again"))
         }
         Command::Daemon { mirror, fuse } => {
             let backend = match (fuse, mirror) {
