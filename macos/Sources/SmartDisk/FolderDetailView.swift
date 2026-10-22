@@ -126,6 +126,91 @@ enum FileSort: Equatable {
     case name, date, amount, match
 }
 
+/// A property a file list can be narrowed down by.
+enum FileFacet: CaseIterable {
+    case type, fits, year, origin
+
+    var title: String {
+        switch self {
+        case .type: "Type"
+        case .fits: "Fits"
+        case .year: "Year"
+        case .origin: "From"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .type: "doc.on.doc"
+        case .fits: "checkmark.seal"
+        case .year: "calendar"
+        case .origin: "folder"
+        }
+    }
+
+    var flag: String {
+        switch self {
+        case .type: "--type"
+        case .fits: "--fits"
+        case .year: "--year"
+        case .origin: "--from"
+        }
+    }
+
+    func value(of item: Item) -> String {
+        switch self {
+        case .type:
+            // "JPG", "PDF", …; files without an extension go by their kind.
+            switch (item.name as NSString).pathExtension.uppercased() {
+            case "": item.kind.capitalized
+            case "JPEG": "JPG"
+            case let ext: ext
+            }
+        case .fits: Confidence(score: item.score).word
+        case .year: String(item.displayDate.prefix(4))
+        case .origin: item.origin
+        }
+    }
+
+    /// The order options appear in the menu.
+    func sorted(_ values: Set<String>) -> [String] {
+        switch self {
+        case .fits: Confidence.allCases.map(\.word).filter(values.contains)
+        case .year: values.sorted(by: >)
+        default: values.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        }
+    }
+}
+
+/// What a file list is narrowed down to. Nothing chosen for a facet means "all".
+struct FileFilters: Equatable {
+    private var chosen: [FileFacet: Set<String>] = [:]
+
+    var isActive: Bool { chosen.values.contains { !$0.isEmpty } }
+
+    func values(_ facet: FileFacet) -> Set<String> { chosen[facet] ?? [] }
+
+    mutating func toggle(_ value: String, in facet: FileFacet) {
+        chosen[facet, default: []].formSymmetricDifference([value])
+    }
+
+    mutating func clear(_ facet: FileFacet) { chosen[facet] = nil }
+
+    /// The same choice as `slim mkdir` flags, so a smart folder keeps it.
+    var arguments: [String] {
+        FileFacet.allCases.flatMap { facet in
+            facet.sorted(values(facet)).flatMap { [facet.flag, facet == .origin ? $0 : $0.lowercased()] }
+        }
+    }
+
+    /// Within one facet any chosen value may match; all facets must match.
+    func matches(_ item: Item, ignoring skipped: FileFacet? = nil) -> Bool {
+        FileFacet.allCases.allSatisfy { facet in
+            facet == skipped || values(facet).isEmpty || values(facet).contains(facet.value(of: item))
+        }
+    }
+}
+
 /// Fixed column widths, shared by the header and every row so they line up.
 private enum Column {
     static let date: CGFloat = 116
@@ -143,6 +228,7 @@ struct FilesCard<Empty: View>: View {
     var isLoading = false
     @ViewBuilder var empty: Empty
     @State private var filter = ""
+    @State private var filters = FileFilters()
     @State private var sort = FileSort.match
     @State private var ascending = false
     @State private var width: CGFloat = 1000
@@ -151,13 +237,19 @@ struct FilesCard<Empty: View>: View {
     private var compact: Bool { width < 820 }
 
     var body: some View {
-        let shown = sorted(filtered)
+        let named = filtered
+        let shown = sorted(named.filter { filters.matches($0) })
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text("Files").font(.headline)
-                        CountBadge(text: "\(items.count.formatted()) total", highlighted: true)
+                        CountBadge(
+                            text: shown.count == items.count
+                                ? "\(items.count.formatted()) total"
+                                : "\(shown.count.formatted()) of \(items.count.formatted())",
+                            highlighted: true
+                        )
                     }
                     Text("Click a file to see why it is here. Double-click to open it.")
                         .font(.caption)
@@ -170,6 +262,10 @@ struct FilesCard<Empty: View>: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
 
+            FilterBar(items: named, filters: $filters)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+
             Rectangle().fill(Theme.border).frame(height: 1)
             header
             Rectangle().fill(Theme.border).frame(height: 1)
@@ -179,6 +275,19 @@ struct FilesCard<Empty: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 empty.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if shown.isEmpty && filters.isActive {
+                ContentUnavailableView {
+                    Label("No files match these filters", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("Try fewer filters, or show everything again.")
+                } actions: {
+                    Button("Clear Filters") {
+                        filters = FileFilters()
+                        filter = ""
+                    }
+                    .buttonStyle(.secondary)
+                }
+                .frame(maxHeight: .infinity)
             } else if shown.isEmpty && !filter.isEmpty {
                 ContentUnavailableView.search(text: filter)
                     .frame(maxHeight: .infinity)
@@ -197,6 +306,10 @@ struct FilesCard<Empty: View>: View {
         .card()
         .clipShape(.rect(cornerRadius: Theme.cardRadius))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onChange(of: folder) {
+            filters = FileFilters()
+            filter = ""
+        }
     }
 
     private var header: some View {
@@ -257,6 +370,134 @@ struct FilesCard<Empty: View>: View {
         case .match: items.sorted { $0.score < $1.score }
         }
         return ascending ? result : result.reversed()
+    }
+}
+
+/// One filter pill per facet that has something to choose, and a way to undo them.
+/// Shows nothing when every file looks the same.
+struct FilterBar: View {
+    var items: [Item]
+    @Binding var filters: FileFilters
+
+    /// Facets worth a pill: something is chosen, or the files differ.
+    static func facets(of items: [Item], _ filters: FileFilters) -> [FileFacet] {
+        FileFacet.allCases.filter { facet in
+            !filters.values(facet).isEmpty || Set(items.map(facet.value(of:))).count > 1
+        }
+    }
+
+    var body: some View {
+        let facets = Self.facets(of: items, filters)
+        if !facets.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(facets, id: \.self) { facet in
+                    FilterMenu(facet: facet, items: items.filter { filters.matches($0, ignoring: facet) }, filters: $filters)
+                }
+                if filters.isActive {
+                    Button("Clear Filters") { filters = FileFilters() }
+                        .buttonStyle(TextActionStyle(color: Theme.accent))
+                        .padding(.leading, 6)
+                }
+                Spacer()
+            }
+        }
+    }
+}
+
+/// A pill that opens a panel of one facet's values, with how many files each keeps.
+/// The panel stays open while you tick boxes; click outside it to close.
+private struct FilterMenu: View {
+    var facet: FileFacet
+    /// The files the other filters leave, so the counts say what you will get.
+    var items: [Item]
+    @Binding var filters: FileFilters
+    @State private var isOpen = false
+
+    var body: some View {
+        let chosen = filters.values(facet)
+        Button {
+            isOpen.toggle()
+        } label: {
+            label(chosen)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help("Show only some files, by \(facet.title.lowercased())")
+        // Anchored to the pill's fixed left end, so the panel does not move
+        // under the pointer when ticking a box changes the pill's width.
+        .popover(isPresented: $isOpen, attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: 44, height: 28))), arrowEdge: .bottom) {
+            panel
+        }
+    }
+
+    private var panel: some View {
+        let counts = Dictionary(grouping: items, by: facet.value(of:)).mapValues(\.count)
+        let chosen = filters.values(facet)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(facet.title).font(.headline)
+                Spacer()
+                Button("Show All") { filters.clear(facet) }
+                    .buttonStyle(TextActionStyle(color: Theme.accent))
+                    .disabled(chosen.isEmpty)
+                    .opacity(chosen.isEmpty ? 0.4 : 1)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            Rectangle().fill(Theme.border).frame(height: 1)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(facet.sorted(Set(counts.keys).union(chosen)), id: \.self) { value in
+                        Toggle(isOn: Binding(
+                            get: { chosen.contains(value) },
+                            set: { _ in filters.toggle(value, in: facet) }
+                        )) {
+                            HStack {
+                                Text(value).lineLimit(1)
+                                Spacer(minLength: 16)
+                                Text(counts[value, default: 0].formatted())
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .toggleStyle(.checkbox)
+                        .padding(.vertical, 4)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            }
+            .frame(maxHeight: 280)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.callout)
+        .frame(width: 240)
+    }
+
+    private func label(_ chosen: Set<String>) -> some View {
+        let active = !chosen.isEmpty
+        let text = switch chosen.count {
+        case 0: facet.title
+        case 1: "\(facet.title): \(chosen.first!)"
+        default: "\(facet.title): \(chosen.count)"
+        }
+        return HStack(spacing: 6) {
+            Image(systemName: facet.symbol)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .bold))
+                .opacity(0.7)
+        }
+        .font(.caption.weight(active ? .semibold : .medium))
+        .foregroundStyle(active ? Theme.accent : .secondary)
+        .padding(.horizontal, 11)
+        .frame(height: 28)
+        .background(active ? Theme.accentSoft : Theme.surface, in: .capsule)
+        .overlay(Capsule().strokeBorder(active ? Theme.accent.opacity(0.35) : Theme.border))
+        .contentShape(.capsule)
     }
 }
 

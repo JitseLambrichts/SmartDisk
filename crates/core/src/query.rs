@@ -36,6 +36,59 @@ pub struct ViewQuery {
     pub topics: Vec<Topic>,
     /// "rules" or "rules+apple-intelligence".
     pub parser: String,
+    /// Narrowing picked by hand when the folder was made; survives a rename.
+    pub filter: FileFilter,
+}
+
+/// Which files a smart folder may hold, on top of what its name says.
+/// Within one list any value may match; every non-empty list must match.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct FileFilter {
+    /// File types as [`file_type`] names them: "jpg", "pdf", "image", …
+    pub types: Vec<String>,
+    /// Year of the document date, or of the file date when it has none.
+    pub years: Vec<i32>,
+    /// Name of the folder the original lives in, e.g. "Downloads".
+    pub origins: Vec<String>,
+    /// How sure the drive must be: "sure", "likely", "maybe".
+    pub fits: Vec<String>,
+}
+
+impl FileFilter {
+    pub fn is_empty(&self) -> bool {
+        self.types.is_empty() && self.years.is_empty() && self.origins.is_empty() && self.fits.is_empty()
+    }
+
+    /// Everything but the score; checked first because it is cheap.
+    pub fn allows_file(&self, file_type: &str, year: i32, origin: &str) -> bool {
+        (self.types.is_empty() || self.types.iter().any(|t| t.eq_ignore_ascii_case(file_type)))
+            && (self.years.is_empty() || self.years.contains(&year))
+            && (self.origins.is_empty() || self.origins.iter().any(|o| o == origin))
+    }
+
+    pub fn allows_score(&self, score: f32) -> bool {
+        self.fits.is_empty() || self.fits.iter().any(|f| f.eq_ignore_ascii_case(fit_word(score)))
+    }
+}
+
+/// A file's type for filtering: its extension ("jpeg" counts as "jpg"),
+/// or its kind when it has none. Matches the app's Type filter.
+pub fn file_type(extension: &str, kind: &str) -> String {
+    match extension {
+        "" => kind.to_lowercase(),
+        "jpeg" => "jpg".into(),
+        e => e.to_lowercase(),
+    }
+}
+
+/// How sure the drive is, in the words the app shows. Same thresholds as the app.
+pub fn fit_word(score: f32) -> &'static str {
+    match score {
+        s if s >= 0.75 => "sure",
+        s if s >= 0.5 => "likely",
+        _ => "maybe",
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -54,6 +107,7 @@ impl ViewQuery {
             && self.extensions.is_empty()
             && !self.needs_code
             && self.topics.is_empty()
+            && self.filter.is_empty()
     }
 
     /// Human-readable chips, used by the app and `slim parse`.
@@ -83,6 +137,19 @@ impl ViewQuery {
         }
         for t in &self.topics {
             out.push(format!("about: {}", t.word));
+        }
+        let f = &self.filter;
+        if !f.types.is_empty() {
+            out.push(format!("only: {}", f.types.iter().map(|t| t.to_uppercase()).collect::<Vec<_>>().join(", ")));
+        }
+        if !f.years.is_empty() {
+            out.push(format!("from year: {}", f.years.iter().map(i32::to_string).collect::<Vec<_>>().join(", ")));
+        }
+        if !f.origins.is_empty() {
+            out.push(format!("from folder: {}", f.origins.join(", ")));
+        }
+        if !f.fits.is_empty() {
+            out.push(format!("fits: {}", f.fits.join(", ")));
         }
         out
     }
@@ -328,6 +395,19 @@ mod tests {
         assert_eq!(q.date_from, NaiveDate::from_ymd_opt(2026, 10, 1));
         assert_eq!(q.date_to, NaiveDate::from_ymd_opt(2026, 10, 31));
         assert_eq!(q.topics[0].word, "school");
+    }
+
+    #[test]
+    fn hand_picked_filter() {
+        let f = FileFilter { types: vec!["jpg".into()], years: vec![2025], origins: vec!["Downloads".into()], fits: vec!["sure".into()] };
+        assert!(f.allows_file(&file_type("jpeg", "image"), 2025, "Downloads"));
+        assert!(!f.allows_file("heic", 2025, "Downloads"));
+        assert!(!f.allows_file("jpg", 2024, "Downloads"));
+        assert!(!f.allows_file("jpg", 2025, "Desktop"));
+        assert!(f.allows_score(0.8) && !f.allows_score(0.6));
+        assert!(FileFilter::default().allows_score(0.1));
+        let q = ViewQuery { filter: f, ..Default::default() };
+        assert!(!q.is_empty(), "a filter alone is a query");
     }
 
     #[test]

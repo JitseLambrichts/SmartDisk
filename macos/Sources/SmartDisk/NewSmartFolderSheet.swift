@@ -6,6 +6,7 @@ struct NewSmartFolderSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var preview: QueryResult?
+    @State private var filters = FileFilters()
     @State private var isCreating = false
     @FocusState private var focused: Bool
 
@@ -85,15 +86,22 @@ struct NewSmartFolderSheet: View {
     }
 
     private var livePreview: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let found = preview?.items ?? []
+        let kept = found.filter { filters.matches($0) }
+        return VStack(alignment: .leading, spacing: 10) {
             SectionTitle("Understood as")
             ChipRow(chips: preview?.chips ?? [])
                 .font(.callout)
                 .animation(.snappy, value: preview?.chips)
-            SectionTitle(preview.map { "Would contain \($0.items.count) file\($0.items.count == 1 ? "" : "s")" } ?? "Looking…")
+            if !FilterBar.facets(of: found, filters).isEmpty {
+                SectionTitle("Only include")
+                    .padding(.top, 4)
+                FilterBar(items: found, filters: $filters)
+            }
+            SectionTitle(preview == nil ? "Looking…" : "Would contain \(kept.count) file\(kept.count == 1 ? "" : "s")")
                 .padding(.top, 4)
             VStack(spacing: 0) {
-                ForEach(preview?.items.prefix(5) ?? []) { item in
+                ForEach(kept.prefix(5)) { item in
                     HStack(spacing: 8) {
                         FileTypeIcon(name: item.name, kind: item.kind, size: 24)
                         Text(item.name).lineLimit(1)
@@ -117,7 +125,7 @@ struct NewSmartFolderSheet: View {
         guard !text.isEmpty, !isCreating else { return }
         isCreating = true
         Task {
-            if await model.createSmartFolder(text) { dismiss() }
+            if await model.createSmartFolder(text, filters: filters) { dismiss() }
             isCreating = false
         }
     }

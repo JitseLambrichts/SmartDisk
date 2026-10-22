@@ -211,19 +211,44 @@ struct FileTypeStyle {
     }
 }
 
+/// How sure the drive is that a file belongs somewhere, in three plain words.
+enum Confidence: CaseIterable {
+    case sure, likely, maybe
+
+    init(score: Double) {
+        self = switch score {
+        case 0.75...: .sure
+        case 0.5...: .likely
+        default: .maybe
+        }
+    }
+
+    var word: String {
+        switch self {
+        case .sure: "Sure"
+        case .likely: "Likely"
+        case .maybe: "Maybe"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .sure: Theme.success
+        case .likely: Theme.warning
+        case .maybe: .secondary
+        }
+    }
+}
+
 /// How sure the drive is, in words instead of a percentage.
 struct ConfidenceTag: View {
     var score: Double
 
     var body: some View {
-        let (word, color): (String, Color) = switch score {
-        case 0.75...: ("Sure", Theme.success)
-        case 0.5...: ("Likely", Theme.warning)
-        default: ("Maybe", .secondary)
-        }
+        let confidence = Confidence(score: score)
         HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 7, height: 7)
-            Text(word)
+            Circle().fill(confidence.color).frame(width: 7, height: 7)
+            Text(confidence.word)
         }
         .font(.callout)
         .foregroundStyle(.primary)

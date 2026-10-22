@@ -13,7 +13,7 @@ use slim_core::db::Db;
 use slim_core::embed::default_embedder;
 use slim_core::helper::Helper;
 use slim_core::index::Indexer;
-use slim_core::query::{self, ViewQuery};
+use slim_core::query::{self, FileFilter, ViewQuery};
 use slim_core::volume::{self, DirKind, Tree};
 use slim_core::{views, why};
 use std::path::PathBuf;
@@ -52,7 +52,11 @@ enum Command {
     /// Show how a folder name is read as a query.
     Parse { name: String },
     /// Create a smart folder (same as mkdir on the drive), or bring back a removed category.
-    Mkdir { name: String },
+    Mkdir {
+        name: String,
+        #[command(flatten)]
+        filter: FilterArgs,
+    },
     /// Remove a smart folder or a category. No file is touched.
     Rmdir { name: String },
     /// Rename a smart folder; its contents are recomputed.
@@ -112,6 +116,30 @@ enum CategoryAction {
     Hide { name: String },
     /// Bring back a removed category (by id or name).
     Show { name: String },
+}
+
+/// Narrow a new smart folder beyond what its name says. Repeat a flag for more values.
+#[derive(clap::Args)]
+struct FilterArgs {
+    /// Only this file type, e.g. --type jpg --type heic.
+    #[arg(long = "type", value_name = "EXT")]
+    types: Vec<String>,
+    /// Only files from this year (document date, else file date).
+    #[arg(long = "year")]
+    years: Vec<i32>,
+    /// Only originals in a folder with this name, e.g. --from Downloads.
+    #[arg(long = "from", value_name = "FOLDER")]
+    origins: Vec<String>,
+    /// Only files the drive is this sure about.
+    #[arg(long = "fits", value_parser = ["sure", "likely", "maybe"])]
+    fits: Vec<String>,
+}
+
+impl From<FilterArgs> for FileFilter {
+    fn from(a: FilterArgs) -> FileFilter {
+        let types = a.types.iter().map(|t| query::file_type(&t.trim_start_matches('.').to_lowercase(), "")).collect();
+        FileFilter { types, years: a.years, origins: a.origins, fits: a.fits }
+    }
 }
 
 #[derive(Subcommand)]
@@ -336,12 +364,12 @@ fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&q).unwrap());
             })
         }
-        Command::Mkdir { name } => {
+        Command::Mkdir { name, filter } => {
             let mut db = Db::open_default()?;
             if volume::restore_category(&db, &name).map_err(|e| anyhow!("{e}"))? {
                 return print(json, &json!({ "restored": name }), |_| println!("brought back \"{name}\""));
             }
-            let id = volume::create_view(&mut db, embedder.as_ref(), helper_for_queries(&config).as_ref(), &name).map_err(|e| anyhow!("{e}"))?;
+            let id = volume::create_view(&mut db, embedder.as_ref(), helper_for_queries(&config).as_ref(), &name, filter.into()).map_err(|e| anyhow!("{e}"))?;
             let n = db.view_items(id)?.len();
             print(json, &json!({ "id": id, "name": name, "count": n }), |_| println!("created \"{name}\" with {n} files"))
         }

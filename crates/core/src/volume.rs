@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::db::Db;
 use crate::embed::Embedder;
 use crate::helper::Helper;
-use crate::query::{self, ViewQuery};
+use crate::query::{self, FileFilter, ViewQuery};
 use crate::views;
 use anyhow::{anyhow, Result};
 use chrono::Local;
@@ -296,7 +296,8 @@ impl SmartVolume {
 
     /// Creates a smart folder from its name. Shared by every backend and the CLI.
     pub fn create_view(&self, name: &str) -> VResult<i64> {
-        create_view(&mut self.db.lock().unwrap(), self.embedder.as_ref(), self.helper_for_queries(), name).inspect(|_| self.invalidate())
+        create_view(&mut self.db.lock().unwrap(), self.embedder.as_ref(), self.helper_for_queries(), name, FileFilter::default())
+            .inspect(|_| self.invalidate())
     }
 
     /// Removes a smart folder, or hides a built-in category.
@@ -343,7 +344,8 @@ pub fn is_placeholder(name: &str) -> bool {
     ["untitled folder", "naamloze map", "nieuwe map", "new folder"].iter().any(|p| n == *p || n.strip_prefix(p).is_some_and(|rest| rest.trim().parse::<u32>().is_ok()))
 }
 
-pub fn create_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>, name: &str) -> VResult<i64> {
+/// `filter` narrows the folder beyond what its name says; pass the default for none.
+pub fn create_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>, name: &str, filter: FileFilter) -> VResult<i64> {
     let name = name.trim();
     if name.is_empty() || name.contains('/') {
         return Err(VolumeError::NotPermitted("invalid folder name".into()));
@@ -354,11 +356,12 @@ pub fn create_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>
     if name.starts_with('.') {
         return Err(VolumeError::NotPermitted("hidden folders are not queries".into()));
     }
-    let q = if is_placeholder(name) {
+    let mut q = if is_placeholder(name) {
         ViewQuery { raw: name.to_owned(), parser: "placeholder".into(), ..Default::default() }
     } else {
         query::parse(name, Local::now().date_naive(), helper)
     };
+    q.filter = filter;
     let id = db.insert_view(name, &serde_json::to_value(&q).map_err(anyhow::Error::from)?)?;
     views::refresh_all(db, embedder)?;
     db.bump_generation()?;
@@ -416,7 +419,8 @@ pub fn rename_view(db: &mut Db, embedder: &dyn Embedder, helper: Option<&Helper>
     if categories::by_name(to).is_some() || db.view_by_name(to)?.is_some_and(|o| o.id != v.id) {
         return Err(VolumeError::Exists);
     }
-    let q = query::parse(to, Local::now().date_naive(), helper);
+    let mut q = query::parse(to, Local::now().date_naive(), helper);
+    q.filter = serde_json::from_value::<ViewQuery>(v.query.clone()).unwrap_or_default().filter;
     db.update_view(v.id, to, &serde_json::to_value(&q).map_err(anyhow::Error::from)?)?;
     views::refresh_all(db, embedder)?;
     db.bump_generation()?;

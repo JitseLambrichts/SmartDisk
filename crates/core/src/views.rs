@@ -2,7 +2,7 @@
 
 use crate::db::{Db, FileRow};
 use crate::embed::{cosine, Embedder};
-use crate::query::ViewQuery;
+use crate::query::{file_type, ViewQuery};
 use crate::text::{contains_term, file_name_words, token_string};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate};
@@ -75,6 +75,14 @@ fn matches(
 ) -> Result<Option<Match>> {
     let mut reasons = Vec::new();
     let mut score = 1.0f32;
+
+    let filter = &q.filter;
+    if !filter.is_empty() {
+        let year = f.doc_date.unwrap_or(f.file_date).year();
+        if !filter.allows_file(&file_type(&f.extension(), &f.kind), year, &f.origin()) {
+            return Ok(None);
+        }
+    }
 
     if let (Some(members), Some(cat)) = (members, q.category.as_deref()) {
         let Some(conf) = members.get(&f.id) else { return Ok(None) };
@@ -153,7 +161,11 @@ fn matches(
         }
         score *= topic_score.max(0.4);
     }
-    Ok(Some(Match { file_id: f.id, score: score.clamp(0.0, 1.0), reasons }))
+    let score = score.clamp(0.0, 1.0);
+    if !filter.allows_score(score) {
+        return Ok(None);
+    }
+    Ok(Some(Match { file_id: f.id, score, reasons }))
 }
 
 /// Recomputes the cached contents of every smart folder.

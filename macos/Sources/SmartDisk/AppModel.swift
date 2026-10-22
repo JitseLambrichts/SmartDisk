@@ -165,10 +165,10 @@ final class AppModel {
         isSearching = false
     }
 
-    func createSmartFolder(_ name: String) async -> Bool {
+    func createSmartFolder(_ name: String, filters: FileFilters = FileFilters()) async -> Bool {
         guard let client else { return false }
         do {
-            try await client.mkdir(name)
+            try await client.mkdir(name, filters: filters)
             await refreshStatus()
             selection = .folder(name)
             await reloadSelection()

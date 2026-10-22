@@ -76,7 +76,9 @@ struct SlimClient: Sendable {
     func capabilities() async throws -> Capabilities { try await decode(Capabilities.self, ["capabilities"]) }
     func categories() async throws -> [CategoryInfo] { try await decode([CategoryInfo].self, ["categories"]) }
 
-    func mkdir(_ name: String) async throws { _ = try await run(["mkdir", name]) }
+    func mkdir(_ name: String, filters: FileFilters = FileFilters()) async throws {
+        _ = try await run(["mkdir", name] + filters.arguments)
+    }
     /// Removes a smart folder, or hides a built-in category.
     func rmdir(_ name: String) async throws { _ = try await run(["rmdir", name]) }
     func showCategory(_ id: String) async throws { _ = try await run(["categories", "show", id]) }

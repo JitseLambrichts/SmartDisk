@@ -102,6 +102,7 @@ slim tree                        # folders on the drive with counts
 slim ls Invoices                 # files in a folder
 slim query "huurcontract"        # search without saving
 slim mkdir "invoices 2026 over 100 euro"
+slim mkdir "foto's" --type heic --year 2025 --from Downloads --fits sure
 slim why ~/Slim/Invoices/factuur-0423.pdf
 slim label ~/Slim/Housing/factuur-0423.pdf --no
 slim settings set sensitive true
