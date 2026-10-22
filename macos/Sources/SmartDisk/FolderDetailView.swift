@@ -374,10 +374,12 @@ struct FilesCard<Empty: View>: View {
 }
 
 /// One filter pill per facet that has something to choose, and a way to undo them.
-/// Shows nothing when every file looks the same.
+/// Shows nothing when every file looks the same, unless `showsAllFacets` is set.
 struct FilterBar: View {
     var items: [Item]
     @Binding var filters: FileFilters
+    /// Every facet, even when the files all look the same, so people see what they can narrow by.
+    var showsAllFacets = false
 
     /// Facets worth a pill: something is chosen, or the files differ.
     static func facets(of items: [Item], _ filters: FileFilters) -> [FileFacet] {
@@ -387,7 +389,7 @@ struct FilterBar: View {
     }
 
     var body: some View {
-        let facets = Self.facets(of: items, filters)
+        let facets = showsAllFacets ? FileFacet.allCases : Self.facets(of: items, filters)
         if !facets.isEmpty {
             HStack(spacing: 8) {
                 ForEach(facets, id: \.self) { facet in

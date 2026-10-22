@@ -42,6 +42,7 @@ struct NewSmartFolderSheet: View {
 
             if name.trimmingCharacters(in: .whitespaces).isEmpty {
                 suggestions
+                filterSection(found: [])
             } else {
                 livePreview
             }
@@ -93,11 +94,8 @@ struct NewSmartFolderSheet: View {
             ChipRow(chips: preview?.chips ?? [])
                 .font(.callout)
                 .animation(.snappy, value: preview?.chips)
-            if !FilterBar.facets(of: found, filters).isEmpty {
-                SectionTitle("Only include")
-                    .padding(.top, 4)
-                FilterBar(items: found, filters: $filters)
-            }
+            filterSection(found: found)
+                .padding(.top, 4)
             SectionTitle(preview == nil ? "Looking…" : "Would contain \(kept.count) file\(kept.count == 1 ? "" : "s")")
                 .padding(.top, 4)
             VStack(spacing: 0) {
@@ -118,6 +116,26 @@ struct NewSmartFolderSheet: View {
             }
             .frame(minHeight: 40, alignment: .top)
         }
+    }
+
+    /// Always shown, so people know up front what they can narrow a folder by.
+    /// The choices come from the files the name finds, so they wait for a name.
+    private func filterSection(found: [Item]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionTitle("Only include")
+            FilterBar(items: found, filters: $filters, showsAllFacets: true)
+                .disabled(found.isEmpty)
+            Text(filterHint(found: found))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func filterHint(found: [Item]) -> String {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "Type a name first, then pick a file type, how sure it should be, a year or the folder it comes from."
+        }
+        return found.isEmpty ? "You can pick these once the name finds files." : "Also applies to files that are added later."
     }
 
     private func create() {
