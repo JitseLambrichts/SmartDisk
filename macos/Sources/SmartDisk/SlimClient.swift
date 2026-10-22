@@ -43,16 +43,23 @@ struct SlimClient: Sendable {
             let out = Pipe(), err = Pipe()
             process.standardOutput = out
             process.standardError = err
+            // Not waitUntilExit(): on a concurrency thread it can miss the exit and block forever.
+            let exit = AsyncStream.makeStream(of: Int32.self)
+            process.terminationHandler = { ended in
+                exit.continuation.yield(ended.terminationStatus)
+                exit.continuation.finish()
+            }
             try process.run()
             // Read before waiting so a large output cannot fill the pipe and block.
             let data = out.fileHandleForReading.readDataToEndOfFile()
             let errData = err.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
+            var statuses = exit.stream.makeAsyncIterator()
+            let status = await statuses.next() ?? -1
+            guard status == 0 else {
                 let message = String(data: errData, encoding: .utf8)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .replacingOccurrences(of: "Error: ", with: "") ?? "slim failed"
-                throw Failure(message: message.isEmpty ? "slim exited with \(process.terminationStatus)" : message)
+                throw Failure(message: message.isEmpty ? "slim exited with \(status)" : message)
             }
             return data
         }.value
