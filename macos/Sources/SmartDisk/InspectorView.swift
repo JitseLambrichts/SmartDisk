@@ -7,35 +7,52 @@ struct InspectorView: View {
 
     var body: some View {
         if let item = model.selectedItem {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack {
-                        Text("File details").font(.headline)
-                        Spacer()
-                        Button {
-                            model.selectedItemID = nil
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 26, height: 26)
-                                .background(Theme.surfaceMuted, in: .circle)
-                                .overlay(Circle().strokeBorder(Theme.border))
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack {
+                            Text("File details").font(.headline)
+                            Spacer()
+                            Button {
+                                model.selectedItemID = nil
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 26, height: 26)
+                                    .background(Theme.surfaceMuted, in: .circle)
+                                    .overlay(Circle().strokeBorder(Theme.border))
+                            }
+                            .buttonStyle(.plain)
+                            .keyboardShortcut(.cancelAction)
+                            .help("Close")
                         }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut(.cancelAction)
-                        .help("Close")
+                        .padding(.top, 30)
+                        FileSummary(item: item)
+                            .tourTarget(.fileSummary)
+                            .id(TourTarget.fileSummary)
+                        if let e = model.explanation, e.fileId == item.fileId {
+                            WhySection(explanation: e, item: item)
+                                .tourTarget(.why)
+                                .id(TourTarget.why)
+                            FactsSection(explanation: e)
+                                .tourTarget(.facts)
+                                .id(TourTarget.facts)
+                        } else {
+                            ProgressView().frame(maxWidth: .infinity)
+                        }
                     }
-                    .padding(.top, 30)
-                    FileSummary(item: item)
-                    if let e = model.explanation, e.fileId == item.fileId {
-                        WhySection(explanation: e, item: item)
-                        FactsSection(explanation: e)
-                    } else {
-                        ProgressView().frame(maxWidth: .infinity)
-                    }
+                    .padding(18)
                 }
-                .padding(18)
+                // The tour scrolls to the part it talks about.
+                .onChange(of: model.tourStep) { _, step in
+                    guard let target = step?.targets.first else { return }
+                    withAnimation(.snappy) { proxy.scrollTo(target, anchor: target == .fileSummary ? .top : .center) }
+                }
+                .onChange(of: model.explanation) { _, _ in
+                    guard let target = model.tourStep?.targets.first, target != .fileSummary else { return }
+                    proxy.scrollTo(target, anchor: .center)
+                }
             }
         } else {
             ContentUnavailableView {
@@ -131,6 +148,8 @@ struct WhySection: View {
             } label: {
                 Label("Undo “doesn't belong here”", systemImage: "arrow.uturn.backward")
             }
+            .tourTarget(.correction)
+            .id(TourTarget.correction)
         } else {
             Button(role: .destructive) {
                 Task { await model.label(item, in: folder, belongs: false) }
@@ -138,6 +157,8 @@ struct WhySection: View {
                 Label("Doesn't belong in \(folder)", systemImage: "minus.circle")
             }
             .help("Removes the file from this folder only. The original is not touched, and the drive learns from it.")
+            .tourTarget(.correction)
+            .id(TourTarget.correction)
         }
     }
 }

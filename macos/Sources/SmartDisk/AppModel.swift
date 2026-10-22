@@ -55,6 +55,20 @@ final class AppModel {
     var folderToChangeIcon: Folder?
     var categories: [CategoryInfo] = []
     var log: [LogRow] = []
+    /// A file to select once its folder is listed, by original path.
+    var itemToSelect: String?
+
+    // The first-run tour (see Tour.swift).
+    var tourStep: TourStep?
+    var tourProgress = TourProgress.writing
+    var tourError: String?
+    var tourUsedExamples = false
+    /// The file and folder the tour explains, and every folder that file is in.
+    var tourFile: String?
+    var tourFolder: String?
+    var tourFolders: [String] = []
+    /// The person took the tour's file out of its folder while trying the correction.
+    var tourCorrected = false
 
     var driveMode: DriveMode {
         didSet { UserDefaults.standard.set(driveMode.rawValue, forKey: "driveMode") }
@@ -110,6 +124,7 @@ final class AppModel {
             capabilities = try? await client?.capabilities()
             if status?.daemonRunning == false { startDaemon() }
             if selection == nil, let first = status?.folders.first { selection = .folder(first.name) }
+            if !hasSeenTour, status != nil { startTour() }
         }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.tick() }
@@ -217,7 +232,10 @@ final class AppModel {
         case nil:
             items = []
         }
-        if keepExplanation, let id = selectedItemID, let item = selectedItem, item.id == id {
+        if let path = itemToSelect, let match = items.first(where: { $0.original == path }) {
+            itemToSelect = nil
+            selectedItemID = match.id
+        } else if keepExplanation, let id = selectedItemID, let item = selectedItem, item.id == id {
             await explain(item)
         } else if !keepExplanation {
             selectedItemID = nil
@@ -298,6 +316,7 @@ final class AppModel {
         guard let client else { return }
         do {
             try await client.label(item.original, folder: folder, belongs: belongs)
+            if tourStep != nil, item.original == tourFile, folder == tourFolder { tourCorrected = belongs == false }
             await refreshStatus()
             await reloadSelection(keepExplanation: belongs == nil)
         } catch { errorMessage = error.localizedDescription }

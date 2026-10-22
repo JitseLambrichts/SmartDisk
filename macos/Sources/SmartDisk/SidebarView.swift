@@ -42,16 +42,19 @@ struct SidebarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 5) {
                     if let status = model.status {
-                        SidebarSection("General", compact: compact)
-                        ForEach(status.categories) { folder in
-                            NavRow(folder: folder, compact: compact)
-                                .contextMenu {
-                                    Button("Show in Finder") { model.openDrive(folder.name) }
-                                    Button("Change Icon…") { model.folderToChangeIcon = folder }
-                                    Divider()
-                                    Button("Remove Category…", role: .destructive) { model.folderToRemove = folder }
-                                }
+                        VStack(alignment: .leading, spacing: 5) {
+                            SidebarSection("General", compact: compact)
+                            ForEach(status.categories) { folder in
+                                NavRow(folder: folder, compact: compact)
+                                    .contextMenu {
+                                        Button("Show in Finder") { model.openDrive(folder.name) }
+                                        Button("Change Icon…") { model.folderToChangeIcon = folder }
+                                        Divider()
+                                        Button("Remove Category…", role: .destructive) { model.folderToRemove = folder }
+                                    }
+                            }
                         }
+                        .tourTarget(.categories)
                         SidebarSection("My Smart Folders", compact: compact)
                             .padding(.top, 26)
                         ForEach(status.smartFolders) { folder in
@@ -59,6 +62,7 @@ struct SidebarView: View {
                                 .contextMenu { smartFolderMenu(folder) }
                         }
                         NewFolderRow(compact: compact) { showingNewFolder = true }
+                            .tourTarget(.newFolder)
                     }
                 }
             }
@@ -66,9 +70,11 @@ struct SidebarView: View {
 
             Spacer(minLength: 10)
             IndexingCard(compact: compact)
+                .tourTarget(.driveStatus)
             Rectangle().fill(Theme.border).frame(height: 1)
                 .padding(.vertical, 10)
             DriveFooter(compact: compact)
+                .tourTarget(.driveFooter)
         }
         .padding(.horizontal, compact ? 12 : 14)
         .padding(.bottom, 14)

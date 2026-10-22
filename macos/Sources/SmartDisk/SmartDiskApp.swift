@@ -23,6 +23,9 @@ struct SmartDiskApp: App {
             CommandGroup(replacing: .sidebar) {
                 SidebarCommand()
             }
+            CommandGroup(replacing: .help) {
+                TourCommand(model: model)
+            }
         }
 
         MenuBarExtra {
@@ -89,6 +92,19 @@ struct SidebarCommand: View {
         Button("Toggle Sidebar") { expanded?.toggle() }
             .keyboardShortcut("s", modifiers: [.control, .command])
             .disabled(expanded == nil)
+    }
+}
+
+/// Help ▸ Smart Disk Tour: the first-run tour, again.
+struct TourCommand: View {
+    var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Smart Disk Tour") {
+            openWindow(id: "main")
+            model.startTour()
+        }
     }
 }
 

@@ -38,6 +38,10 @@ struct ContentView: View {
         .animation(.snappy(duration: 0.25), value: model.selectedItemID != nil)
         .animation(.snappy(duration: 0.25), value: model.sidebarExpanded)
         .ignoresSafeArea(edges: .top)
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            TourOverlay(anchors: anchors)
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.tourStep == nil)
         .tint(Theme.accent)
         .onChange(of: model.searchText) { _, text in
             if text.isEmpty, model.selection == .search {
@@ -195,6 +199,12 @@ struct WelcomeView: View {
                         Label("New Smart Folder", systemImage: "plus")
                     }
                     .buttonStyle(.primary)
+                    Button {
+                        model.startTour()
+                    } label: {
+                        Label("Take the Tour", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.secondary)
                 }
                 HStack(spacing: 16) {
                     PromiseCard(symbol: "arrow.left.arrow.right", title: "Never moved", text: "Originals are never moved, copied or changed.")

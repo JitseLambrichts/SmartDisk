@@ -62,6 +62,7 @@ struct FolderDetailView: View {
             FilesCard(items: model.items, folder: folder.name, isLoading: model.isLoadingItems) {
                 emptyState
             }
+            .tourTarget(.fileList)
         }
         .padding(.horizontal, 28)
         .padding(.top, 28)
@@ -858,6 +859,7 @@ struct SearchResultsView: View {
                 .disabled(saving || model.searchText.isEmpty)
                 .help("Keep this search as a folder that fills itself")
             }
+            .tourTarget(.searchPage)
             FilesCard(items: model.searchResult?.items ?? [], folder: nil, isLoading: model.isSearching) {
                 ContentUnavailableView.search(text: model.searchText)
             }
