@@ -45,79 +45,70 @@ func write(_ text: String, txt name: String, in dir: String) {
     try! text.write(to: folder.appendingPathComponent(name), atomically: true, encoding: .utf8)
 }
 
+// Every name and identifier below is fictitious test data.
 write("""
-FACTUUR 2026-0423
-Factuurdatum: 04/03/2026
-Verhuurder: Kotbaas BV, Naamsestraat 12, 3000 Leuven
-BTW BE 0123.456.789
-Omschrijving: Huur studentenkamer maart
-Huurprijs € 450,00
-Vaste kosten € 25,00
-Totaal te betalen: € 475,00
-IBAN BE68 5390 0754 7034 — vervaldatum 31/03/2026
-""", pdf: "factuur-0423.pdf", in: "Downloads")
+INVOICE 2026-0423
+Invoice date: 04/03/2026
+Landlord: Example Student Homes
+Description: Student room rent for March
+Rent: EUR 450.00
+Service charge: EUR 25.00
+Total amount due: EUR 475.00
+Due date: 31/03/2026
+""", pdf: "rent-invoice-0423.pdf", in: "Downloads")
 
 write("""
 INVOICE #88412
 Invoice date: 12 January 2026
-Coolblue B.V. — VAT NL123456789B01
-1x USB-C hub     € 39,99
-Subtotal € 33,05
-VAT 21% € 6,94
-Total € 39,99
-""", pdf: "invoice-coolblue.pdf", in: "Downloads")
+Example Electronics
+1x USB-C hub EUR 39.99
+Subtotal EUR 33.05
+VAT 21% EUR 6.94
+Total EUR 39.99
+""", pdf: "electronics-invoice.pdf", in: "Downloads")
 
 write("""
-FACTUUR F-2026-118
-Factuurdatum: 15/09/2026
-Fluvius — energie
-Elektriciteit en gas, voorschot september
-Totaal te betalen: € 132,40
-BTW BE 0477.445.084
-""", pdf: "energie-september.pdf", in: "Documents/Wonen")
+INVOICE F-2026-118
+Invoice date: 15/09/2026
+Example Energy
+Electricity and gas, September advance payment
+Total amount due: EUR 132.40
+""", pdf: "energy-september.pdf", in: "Documents/Housing")
 
 write("""
-HUUROVEREENKOMST VOOR STUDENTENKAMER
-
-Tussen de partijen:
-De verhuurder, Kotbaas BV, en de huurder, Sam Peeters.
-
-Artikel 1 — Duur: deze overeenkomst geldt voor twaalf maanden vanaf 1 september 2025.
-Artikel 2 — Huurprijs: 450 euro per maand, te betalen vóór de vijfde van de maand.
-Artikel 3 — Waarborg: de huurwaarborg bedraagt twee maanden huur.
-Artikel 4 — Opzegtermijn: de huurder kan de overeenkomst opzeggen met een opzegtermijn van drie maanden.
-Artikel 5 — Plaatsbeschrijving bij aanvang en einde van de huur.
-
-Ondertekend te Leuven op 20 augustus 2025.
-Handtekening verhuurder — Handtekening huurder
-""", pdf: "huurcontract-kot.pdf", in: "Documents/Wonen")
+TENANCY AGREEMENT FOR A STUDENT ROOM
+Between the landlord, Example Student Homes, and the tenant, Sam Example.
+Article 1: This agreement lasts twelve months from 1 September 2025.
+Article 2: Rent is EUR 450 per month, payable by the fifth day.
+Article 3: The deposit is equal to two months of rent.
+Article 4: The tenant can end the agreement with a notice period of three months.
+Article 5: The parties inspect the room at the start and end of the tenancy.
+Signed on 20 August 2025. Landlord signature — Tenant signature.
+""", pdf: "student-tenancy-agreement.pdf", in: "Documents/Housing")
 
 write("""
-ARBEIDSOVEREENKOMST — STUDENTENJOB
-
-Tussen de werkgever Bakkerij Janssens en de werknemer, hierna de partijen.
-Artikel 1. De werknemer werkt op zaterdag van 8 tot 14 uur.
-Artikel 2. Het loon bedraagt 14,20 euro bruto per uur.
-Artikel 3. Deze overeenkomst kan door beide partijen beëindigd worden zonder bijzondere voorwaarden.
-Ondertekend op 2 februari 2026.
-""", pdf: "studentenjob-contract.pdf", in: "Documents")
+EMPLOYMENT CONTRACT — STUDENT JOB
+The parties are Example Bakery and Sam Example, the employee.
+Article 1: The employee works on Saturday from 8 a.m. until 2 p.m.
+Article 2: Gross pay is EUR 14.20 per hour, subject to applicable deductions.
+Article 3: Either party can terminate this agreement under the agreed terms.
+The employer provides the equipment required for the role.
+Signed on 2 February 2026. Employer signature — Employee signature.
+""", pdf: "student-employment-contract.pdf", in: "Documents")
 
 write("""
-KONINKRIJK BELGIË — IDENTITEITSKAART
-BELGIQUE · BELGIEN · BELGIUM
-Naam: PEETERS
-Voornamen: Sam
-Nationaliteit: Belg
-Geboortedatum: 01 01 2003
-IDBEL5912345674<<<<<<<<<<<<<<<
-0301012M3101017BEL<<<<<<<<<<<0
-PEETERS<<SAM<<<<<<<<<<<<<<<<<<<
-""", png: "scan-id-voorkant.png", in: "Documents/Scans", width: 1400, height: 900)
+FICTIONAL IDENTITY CARD — TEST DATA ONLY
+Surname: EXAMPLE
+Given name: Sam
+Nationality: Example
+Date of birth: 01 January 2003
+This is not a valid identity document.
+""", png: "sample-identity-card.png", in: "Documents/Scans", width: 1400, height: 900)
 
 write("""
 Messages
-Your verification code is 482913.
-Do not share this code with anyone.
+Your example verification code is 482913.
+This is fictitious test data.
 """, png: "Screenshot 2026-10-02 at 14.21.07.png", in: "Desktop", width: 1200, height: 700)
 
 write("""
@@ -126,20 +117,20 @@ Tomorrow: cloudy
 """, png: "Screenshot 2026-09-12 at 09.03.44.png", in: "Desktop", width: 1200, height: 700)
 
 write("""
-KU Leuven — Faculteit Economie
-Cursus: Statistiek I — syllabus hoofdstuk 3
-Examen in januari. Lessen op dinsdag.
-""", pdf: "statistiek-hoofdstuk3.pdf", in: "Downloads")
+Example University — Faculty of Economics
+Course: Statistics I — chapter 3
+Exam in January. Classes on Tuesday.
+""", pdf: "statistics-chapter3.pdf", in: "Downloads")
 
 write("""
-Boodschappen: melk, brood, kaas, appels, koffie
-""", txt: "boodschappen.txt", in: "Documents")
+Shopping: milk, bread, cheese, apples, coffee
+""", txt: "shopping.txt", in: "Documents")
 
 write("""
-FOD Financiën — fiscale fiche 281.10
-Aanslagjaar 2025, inkomsten 2025
-Belastbaar loon: 4.280,00 EUR
-Datum: 28/02/2025
-""", pdf: "fiscale-fiche-2025.pdf", in: "Documents/Belastingen")
+Example Tax Office — tax statement
+Tax year 2025
+Taxable pay: EUR 4,280.00
+Date: 28/02/2025
+""", pdf: "tax-statement-2025.pdf", in: "Documents/Taxes")
 
-print("fixtures written to \(out.path)")
+print("Sample documents written to \(out.path)")

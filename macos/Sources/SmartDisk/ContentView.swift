@@ -91,12 +91,14 @@ struct ContentView: View {
     private var detail: some View {
         if model.client == nil {
             ContentUnavailableView {
-                Label("The slim command was not found", systemImage: "terminal")
+                Label("Smart Disk could not start", systemImage: "externaldrive.badge.exclamationmark")
             } description: {
-                Text("Build it with `cargo build --release` in the project folder, or set SLIM_BIN.")
+                Text("A required app component is missing. Download a fresh copy and move SmartDisk.app to Applications.")
             }
         } else if model.status == nil {
             ProgressView("Connecting to the drive…")
+        } else if model.status?.config.folders.isEmpty == true {
+            WelcomeView(showingNewFolder: $showingNewFolder)
         } else if model.selection == .search {
             SearchResultsView(showingNewFolder: $showingNewFolder)
         } else if let folder = model.selectedFolder {
@@ -194,9 +196,9 @@ struct WelcomeView: View {
                     Text("Your files stay exactly where they are. Smart Disk reads what is inside them and shows each file in the folders where it belongs.")
                 } actions: {
                     Button {
-                        showingNewFolder = true
+                        model.addWatchedFolder()
                     } label: {
-                        Label("New Smart Folder", systemImage: "plus")
+                        Label("Choose Folders…", systemImage: "folder.badge.plus")
                     }
                     .buttonStyle(.primary)
                     Button {
@@ -211,6 +213,9 @@ struct WelcomeView: View {
                     PromiseCard(symbol: "lock", title: "Stays on your Mac", text: "Text recognition and search run on your Mac.")
                     PromiseCard(symbol: "person.crop.circle.badge.xmark", title: "No account", text: "No sign-up, no tracking, no cloud.")
                 }
+                Text("Choose the folders you want Smart Disk to read. You can change them in Settings → Folders. To use the drive in Finder and file dialogs, drag your Slim folder to Finder’s sidebar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 32)
             .padding(.top, 44)

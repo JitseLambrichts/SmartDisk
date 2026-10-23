@@ -18,10 +18,11 @@ use serde::{Deserialize, Serialize};
 use slim_core::db::Db;
 use slim_core::index::Indexer;
 use slim_core::volume::{DirKind, SmartVolume, Tree, VirtualVolume, META_DIR};
-use slim_core::{categories, Config};
+use slim_core::{categories, config::write_private, Config};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::os::unix::fs::symlink;
+use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 const MANIFEST: &str = "manifest.json";
@@ -58,6 +59,17 @@ fn is_symlink(p: &Path) -> bool {
     fs::symlink_metadata(p).map(|m| m.file_type().is_symlink()).unwrap_or(false)
 }
 
+fn real_directory(path: &Path) -> Result<()> {
+    fs::DirBuilder::new().recursive(true).mode(0o700).create(path)?;
+    anyhow::ensure!(fs::symlink_metadata(path)?.file_type().is_dir(), "{} must be a real directory, not a symbolic link", path.display());
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+    Ok(())
+}
+
+fn safe_component(name: &str) -> bool {
+    !name.is_empty() && !name.starts_with('.') && !name.contains('/') && !name.contains('\0')
+}
+
 impl<'a> Mirror<'a> {
     pub fn new(root: PathBuf, volume: &'a SmartVolume) -> Self {
         Mirror { root, volume }
@@ -67,28 +79,60 @@ impl<'a> Mirror<'a> {
         self.root.join(META_DIR).join(MANIFEST)
     }
 
-    fn load_manifest(&self) -> Manifest {
-        fs::read(self.manifest_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    fn load_manifest(&self) -> Result<Manifest> {
+        let bytes = match fs::read(self.manifest_path()) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Manifest::default()),
+            Err(e) => return Err(e.into()),
+        };
+        let manifest: Manifest = serde_json::from_slice(&bytes).context("reading the drive manifest")?;
+        anyhow::ensure!(manifest.dirs.iter().all(|(dir, links)| safe_component(dir) && links.keys().all(|n| safe_component(n))), "invalid path in drive manifest");
+        Ok(manifest)
     }
 
     fn save_manifest(&self, m: &Manifest) -> Result<()> {
-        fs::write(self.manifest_path(), serde_json::to_vec_pretty(m)?)?;
-        Ok(())
+        write_private(&self.manifest_path(), &serde_json::to_vec_pretty(m)?)
     }
 
     /// One reconciliation pass: first read what the user changed, then render.
     pub fn sync(&self, config: &Config) -> Result<SyncReport> {
-        fs::create_dir_all(self.root.join(META_DIR)).with_context(|| format!("creating {}", self.root.display()))?;
+        if let Ok(meta) = fs::symlink_metadata(&self.root) {
+            anyhow::ensure!(meta.is_dir() && !meta.file_type().is_symlink(), "the drive root must be a real directory");
+            let owned = fs::symlink_metadata(self.manifest_path()).map(|m| m.is_file() && !m.file_type().is_symlink()).unwrap_or(false);
+            if !owned {
+                let nonempty = fs::read_dir(&self.root)?.any(|e| e.map(|e| e.file_name() != ".DS_Store").unwrap_or(true));
+                anyhow::ensure!(!nonempty, "{} is not an empty Smart Disk folder. Rename the existing folder to preserve its files, then restart Smart Disk", self.root.display());
+            }
+        }
+        real_directory(&self.root)?;
+        real_directory(&self.root.join(META_DIR))?;
         let mut report = SyncReport::default();
-        let manifest = self.load_manifest();
+        let mut manifest = self.load_manifest()?;
         let fresh_mirror = manifest.dirs.is_empty();
+        let mut blocked = BTreeSet::new();
+        // Unsafe paths are never followed, but must not prevent privacy cleanup
+        // in the other directories that we can safely reconcile.
+        for name in manifest.dirs.keys().chain(self.volume.tree().dirs.iter().map(|d| &d.name)) {
+            anyhow::ensure!(safe_component(name), "invalid folder name in drive");
+            let p = self.root.join(name);
+            if let Ok(meta) = fs::symlink_metadata(&p) {
+                if !meta.is_dir() || meta.file_type().is_symlink() { blocked.insert(name.clone()); }
+            }
+        }
+        let mut blocked_owned = BTreeMap::new();
+        manifest.dirs.retain(|name, links| {
+            if blocked.contains(name) { blocked_owned.insert(name.clone(), links.clone()); false } else { true }
+        });
         if !fresh_mirror {
             self.apply_user_changes(&manifest, config, &mut report)?;
         }
         self.volume.invalidate();
-        let tree = self.volume.tree();
-        let manifest = self.render(&tree, manifest, &mut report)?;
+        let mut tree = (*self.volume.tree()).clone();
+        tree.dirs.retain(|d| !blocked.contains(&d.name));
+        let mut manifest = self.render(&tree, manifest, &mut report)?;
+        manifest.dirs.extend(blocked_owned);
         self.save_manifest(&manifest)?;
+        anyhow::ensure!(blocked.is_empty(), "these drive folders must be real directories: {}", blocked.into_iter().collect::<Vec<_>>().join(", "));
         Ok(report)
     }
 
@@ -204,7 +248,7 @@ impl<'a> Mirror<'a> {
         let mut new = Manifest::default();
         for d in &tree.dirs {
             let dir_path = self.root.join(&d.name);
-            fs::create_dir_all(&dir_path)?;
+            real_directory(&dir_path)?;
             let previous = old.dirs.get(&d.name).cloned().unwrap_or_default();
             let mut links = BTreeMap::new();
             for f in &d.entries {
@@ -252,7 +296,7 @@ impl<'a> Mirror<'a> {
             }
         }
         for (name, bytes) in &tree.meta {
-            fs::write(self.root.join(META_DIR).join(name), bytes)?;
+            write_private(&self.root.join(META_DIR).join(name), bytes)?;
         }
         Ok(new)
     }
@@ -263,4 +307,83 @@ fn same_content(a: &Path, b: &Path) -> bool {
         (Ok(x), Ok(y)) => x == y,
         _ => false,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slim_core::embed::default_embedder;
+
+    #[test]
+    fn unsafe_category_does_not_block_sensitive_link_cleanup() {
+        let base = std::env::temp_dir().join(format!("smartdisk-cleanup-{}", std::process::id()));
+        let root = base.join("drive");
+        let source = base.join("source");
+        let outside = base.join("outside");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let original = source.join("passport.txt");
+        fs::write(&original, "Passport. Nationality: Example. Date of birth: 01/01/2000.").unwrap();
+        let mut config = Config { sensitive_enabled: true, folders: vec![source], mirror_path: root.clone(), ..Config::default() };
+        let db_path = base.join("index.sqlite");
+        let mut db = Db::open(&db_path).unwrap();
+        let embedder = default_embedder();
+        slim_core::index::Indexer::new(&mut db, &config, embedder.as_ref()).index_path(&original).unwrap();
+        let volume = SmartVolume::new(db, config.clone(), default_embedder()).unwrap();
+        Mirror::new(root.clone(), &volume).sync(&config).unwrap();
+        let link = root.join("ID Documents/passport.txt");
+        assert!(is_symlink(&link));
+        fs::remove_dir(root.join("Photos")).unwrap();
+        symlink(&outside, root.join("Photos")).unwrap();
+        config.sensitive_enabled = false;
+        let hidden_volume = SmartVolume::new(Db::open(&db_path).unwrap(), config.clone(), default_embedder()).unwrap();
+        let _ = Mirror::new(root, &hidden_volume).sync(&config);
+        let remains = is_symlink(&link);
+        drop(hidden_volume); drop(volume);
+        fs::remove_dir_all(base).unwrap();
+        assert!(!remains, "an unrelated unsafe directory must not leave sensitive links exposed");
+    }
+
+    #[test]
+    fn refuses_to_adopt_an_existing_folder_of_originals() {
+        let root = std::env::temp_dir().join(format!("smartdisk-unowned-{}", std::process::id()));
+        fs::create_dir_all(root.join("Invoices")).unwrap();
+        fs::write(root.join("Invoices/original.txt"), "keep me here").unwrap();
+        let config = Config { mirror_path: root.clone(), ..Config::default() };
+        let volume = SmartVolume::new(Db::open_in_memory().unwrap(), config.clone(), default_embedder()).unwrap();
+        let result = Mirror::new(root.clone(), &volume).sync(&config);
+        assert_eq!(fs::read_to_string(root.join("Invoices/original.txt")).unwrap(), "keep me here");
+        fs::remove_dir_all(root).unwrap();
+        assert!(result.is_err());
+    }
+
+    fn rejects_linked_directory(name: &str) {
+        let base = std::env::temp_dir().join(format!("smartdisk-mirror-{}-{name}", std::process::id()));
+        let root = base.join("drive");
+        let outside = base.join("originals");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("keep.txt"), "original content").unwrap();
+        if name == "root" {
+            symlink(&outside, &root).unwrap();
+        } else {
+            fs::create_dir_all(&root).unwrap();
+            symlink(&outside, root.join(name)).unwrap();
+        }
+        let config = Config { mirror_path: root.clone(), ..Config::default() };
+        let volume = SmartVolume::new(Db::open_in_memory().unwrap(), config.clone(), default_embedder()).unwrap();
+        let result = Mirror::new(root, &volume).sync(&config);
+        let contents: Vec<_> = fs::read_dir(&outside).unwrap().map(|e| e.unwrap().file_name()).collect();
+        fs::remove_dir_all(base).unwrap();
+        assert!(result.is_err(), "must refuse a symlink in a managed directory");
+        assert_eq!(contents.len(), 1, "must not write metadata into originals");
+    }
+
+    #[test]
+    fn refuses_a_symlink_as_the_drive_root() { rejects_linked_directory("root"); }
+
+    #[test]
+    fn refuses_a_symlink_as_the_metadata_directory() { rejects_linked_directory(".slim"); }
+
+    #[test]
+    fn refuses_a_symlink_as_a_category_directory() { rejects_linked_directory("Invoices"); }
 }

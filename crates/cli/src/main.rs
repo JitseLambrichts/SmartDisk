@@ -252,8 +252,7 @@ fn print_items(items: &Vec<Item>) {
 }
 
 fn daemon_pid() -> Option<i32> {
-    let pid: i32 = std::fs::read_to_string(data_dir().join("daemon.pid")).ok()?.trim().parse().ok()?;
-    (unsafe { libc::kill(pid, 0) } == 0).then_some(pid)
+    daemon::running_pid()
 }
 
 fn main() -> Result<()> {
@@ -335,7 +334,12 @@ fn main() -> Result<()> {
                 (None, Some(mirror)) => daemon::Backend::Mirror(mirror.unwrap_or_else(|| config.mirror_path.clone())),
                 (None, None) => daemon::Backend::None,
             };
-            daemon::run(backend)
+            daemon::run(backend).inspect_err(|e| {
+                if let Ok(db) = Db::open_default() {
+                    let _ = db.log("error", &format!("Drive could not start: {e}"));
+                    if daemon_pid().is_none() { let _ = db.set_state("state", "stopped"); }
+                }
+            })
         }
         Command::Tree => {
             let db = Db::open_default()?;
@@ -367,7 +371,7 @@ fn main() -> Result<()> {
                     let d = tree.dir(name).ok_or_else(|| anyhow!("no folder named \"{name}\" (see `slim tree`)"))?;
                     d.entries.iter().map(|e| e.file_id).collect()
                 }
-                None => db.files()?.iter().map(|f| f.id).collect(),
+                None => db.visible_files(&config)?.iter().map(|f| f.id).collect(),
             };
             let hits = find::find_text(&db, &ids, &text)?;
             print(json, &hits, |hits| {
@@ -379,9 +383,11 @@ fn main() -> Result<()> {
         }
         Command::Query { text } => {
             let db = Db::open_default()?;
+            let visible: std::collections::HashSet<_> = db.visible_files(&config)?.iter().map(|f| f.id).collect();
             let q = query::parse(&text, Local::now().date_naive(), helper_for_queries(&config).as_ref());
             let mut items = Vec::new();
             for m in views::evaluate(&db, &q, embedder.as_ref(), None)? {
+                if !visible.contains(&m.file_id) { continue; }
                 if let Some(f) = db.file_by_id(m.file_id)? {
                     if let Some(i) = item(&db, f.file_name(), m.file_id, m.score, m.reasons)? {
                         items.push(i);
@@ -481,12 +487,19 @@ fn main() -> Result<()> {
                     if !config.folders.contains(&p) {
                         config.folders.push(p);
                         config.save()?;
+                        Db::open_default()?.set_state("source_folders", &serde_json::to_string(&config.folders)?)?;
                     }
                 }
                 FolderAction::Remove { path } => {
                     let p = path.canonicalize().unwrap_or(path);
                     config.folders.retain(|f| f != &p);
                     config.save()?;
+                    let mut db = Db::open_default()?;
+                    // Also revoke in-flight indexers before pruning old data.
+                    db.set_state("source_folders", &serde_json::to_string(&config.folders)?)?;
+                    Indexer::new(&mut db, &config, embedder.as_ref()).prune()?;
+                    views::refresh_all(&mut db, embedder.as_ref())?;
+                    db.bump_generation()?;
                 }
             }
             print(json, &config.folders, |f| f.iter().for_each(|p| println!("{}", p.display())))
@@ -513,6 +526,7 @@ fn main() -> Result<()> {
                 }
                 config.save()?;
                 let db = Db::open_default()?;
+                if key == "full-text" { db.set_text_storage(config.store_full_text)?; }
                 db.bump_generation()?;
             }
             print(json, &config, |c| println!("{}", serde_json::to_string_pretty(c).unwrap()))

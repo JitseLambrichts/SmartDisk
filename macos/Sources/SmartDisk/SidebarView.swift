@@ -23,7 +23,7 @@ struct SidebarView: View {
                         model.selection = .search
                         Task { await model.runSearch() }
                     }
-                    .help("Search by meaning, e.g. huurcontract")
+                    .help("Search your files, e.g. tenancy agreement")
                 }
             }
             .padding(.bottom, 28)
@@ -405,7 +405,7 @@ struct IndexingCard: View {
 
     private func detail(_ s: DriveStatus) -> String {
         switch s.state {
-        case "idle": return "\(s.filesIndexed.formatted()) files sorted. New files are picked up by themselves."
+        case "idle": return "\(s.filesIndexed.formatted()) file\(s.filesIndexed == 1 ? "" : "s") sorted. New files are picked up by themselves."
         case "paused", "battery": return "Resume reading in Settings."
         default: return "Start it to keep your folders filled."
         }

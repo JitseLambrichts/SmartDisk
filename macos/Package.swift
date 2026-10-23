@@ -13,5 +13,6 @@ let package = Package(
         .executableTarget(name: "SlimHelper", path: "Sources/SlimHelper"),
         // Menu bar + main window.
         .executableTarget(name: "SmartDisk", path: "Sources/SmartDisk"),
+        .testTarget(name: "SmartDiskTests", dependencies: ["SmartDisk"]),
     ]
 )

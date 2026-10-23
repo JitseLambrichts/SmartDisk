@@ -49,6 +49,7 @@ pub fn explain(db: &Db, config: &Config, path: &str) -> Result<Explanation> {
         (db.file_by_path(&p)?, None)
     };
     let file = file.ok_or_else(|| anyhow!("{path} is not in the index"))?;
+    anyhow::ensure!(db.visible_files(config)?.iter().any(|f| f.id == file.id), "this file is outside your sources or hidden by your privacy settings");
     explain_file(db, &tree, &file, asked)
 }
 

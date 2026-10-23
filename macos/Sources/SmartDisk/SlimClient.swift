@@ -16,6 +16,10 @@ struct SlimClient: Sendable {
         if let bundled = Bundle.main.url(forAuxiliaryExecutable: "slim") {
             candidates.append(bundled)
         }
+        // Installed apps must only execute their own signed components.
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }.map(SlimClient.init)
+        }
         if let env = ProcessInfo.processInfo.environment["SLIM_BIN"] {
             candidates.append(URL(fileURLWithPath: env))
         }
@@ -50,9 +54,11 @@ struct SlimClient: Sendable {
                 exit.continuation.finish()
             }
             try process.run()
-            // Read before waiting so a large output cannot fill the pipe and block.
+            // Drain both pipes concurrently: either one can fill before the other closes.
+            let errorHandle = err.fileHandleForReading
+            let errorReader = Task.detached { errorHandle.readDataToEndOfFile() }
             let data = out.fileHandleForReading.readDataToEndOfFile()
-            let errData = err.fileHandleForReading.readDataToEndOfFile()
+            let errData = await errorReader.value
             var statuses = exit.stream.makeAsyncIterator()
             let status = await statuses.next() ?? -1
             guard status == 0 else {

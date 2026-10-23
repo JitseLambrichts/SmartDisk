@@ -10,6 +10,9 @@ use slim_core::index::{lower_priority, on_battery, Indexer, Outcome};
 use slim_core::views;
 use slim_core::volume::SmartVolume;
 use std::collections::BTreeSet;
+use std::fs::{File, OpenOptions};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError};
@@ -37,10 +40,36 @@ fn stopping() -> bool {
 /// Full rescan interval, as a safety net next to FSEvents.
 const RESCAN: Duration = Duration::from_secs(15 * 60);
 
+/// Held for the entire daemon lifetime. The lock inode is never unlinked.
+struct DaemonGuard(File);
+
+impl DaemonGuard {
+    fn acquire() -> Result<Self> {
+        let file = OpenOptions::new().read(true).write(true).create(true).truncate(false)
+            .mode(0o600).custom_flags(libc::O_NOFOLLOW).open(data_dir().join("daemon.lock"))?;
+        anyhow::ensure!(unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0, "Smart Disk is already running for this index");
+        slim_core::config::write_private(&data_dir().join("daemon.pid"), std::process::id().to_string().as_bytes())?;
+        Ok(Self(file))
+    }
+}
+
+impl Drop for DaemonGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(data_dir().join("daemon.pid"));
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN); }
+    }
+}
+
+pub fn running_pid() -> Option<i32> {
+    let file = OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOFOLLOW).open(data_dir().join("daemon.lock")).ok()?;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 { return None; }
+    let pid: i32 = std::fs::read_to_string(data_dir().join("daemon.pid")).ok()?.trim().parse().ok()?;
+    (pid > 1 && unsafe { libc::kill(pid, 0) } == 0).then_some(pid)
+}
+
 pub fn run(backend: Backend) -> Result<()> {
     ensure_data_dir()?;
-    let pid_file = data_dir().join("daemon.pid");
-    std::fs::write(&pid_file, std::process::id().to_string())?;
+    let _guard = DaemonGuard::acquire()?;
     unsafe {
         libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
         libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
@@ -50,6 +79,9 @@ pub fn run(backend: Backend) -> Result<()> {
 
     let config = Config::load()?;
     let volume = Arc::new(SmartVolume::new(Db::open_default()?, config.clone(), default_embedder())?);
+    if let Backend::Mirror(root) = &backend {
+        slim_fs::mirror::Mirror::new(root.clone(), &volume).sync(&config)?;
+    }
 
     // Keep capability info around for the app (spawning the helper is not free).
     if let Some(h) = slim_core::helper::Helper::locate(config.helper_path.as_deref()) {
@@ -111,7 +143,6 @@ pub fn run(backend: Backend) -> Result<()> {
     db.log("info", "daemon stopped")?;
     db.set_state("state", "stopped")?;
     db.set_state("mount", "null")?;
-    let _ = std::fs::remove_file(&pid_file);
     Ok(())
 }
 
@@ -169,9 +200,14 @@ fn index_loop_inner() -> Result<()> {
 
         if config.paused {
             db.set_state("state", "paused")?;
-            // Keep collecting events so nothing is missed when we resume.
-            while let Ok(p) = rx.recv_timeout(Duration::from_secs(2)) {
-                pending.insert(p);
+            // Bound each collection pass so continuous events cannot prevent
+            // Resume or Quit from being observed.
+            let until = Instant::now() + Duration::from_secs(2);
+            while !stopping() && Instant::now() < until {
+                match rx.recv_timeout(Duration::from_millis(200)) {
+                    Ok(p) => { pending.insert(p); }
+                    Err(_) => break,
+                }
             }
             continue;
         }
@@ -190,7 +226,7 @@ fn index_loop_inner() -> Result<()> {
                             let _ = state_db.set_state("current", &p.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default());
                         }
                     },
-                    || stopping() || Config::load().map(|c| c.paused || (c.pause_on_battery && on_battery())).unwrap_or(false),
+                    || stopping() || Config::load().map(|c| c.paused || c.folders != config.folders || (c.pause_on_battery && on_battery())).unwrap_or(true),
                 )?
             };
             db.set_state("progress_done", &report.total.to_string())?;

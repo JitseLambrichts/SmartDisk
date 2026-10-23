@@ -3,9 +3,11 @@
 use crate::categories::{self, Category};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Where the index and configuration live. `SLIM_HOME` overrides it (tests, scripts).
 pub fn data_dir() -> PathBuf {
@@ -25,9 +27,25 @@ pub fn home_dir() -> PathBuf {
 /// text from every document, so nobody else on the Mac may read it.
 pub fn ensure_data_dir() -> Result<PathBuf> {
     let dir = data_dir();
-    fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+    fs::DirBuilder::new().recursive(true).mode(0o700).create(&dir).with_context(|| format!("creating {}", dir.display()))?;
+    anyhow::ensure!(!fs::symlink_metadata(&dir)?.file_type().is_symlink(), "the index directory must not be a symbolic link");
     fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
     Ok(dir)
+}
+
+/// Replaces a file atomically without following an existing destination symlink.
+pub fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let tmp = path.with_extension(format!("tmp-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+    let result = (|| -> Result<()> {
+        let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::rename(&tmp, path)?;
+        Ok(())
+    })();
+    if result.is_err() { let _ = fs::remove_file(&tmp); }
+    result
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +80,7 @@ impl Default for Config {
     fn default() -> Self {
         let home = home_dir();
         Config {
-            folders: vec![home.join("Downloads"), home.join("Documents")],
+            folders: Vec::new(),
             sensitive_enabled: false,
             hidden_categories: Vec::new(),
             store_full_text: true,
@@ -93,12 +111,7 @@ impl Config {
 
     pub fn save(&self) -> Result<()> {
         ensure_data_dir()?;
-        let path = Self::path();
-        let tmp = path.with_extension("json.tmp");
-        fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
-        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
-        fs::rename(&tmp, &path)?;
-        Ok(())
+        write_private(&Self::path(), &serde_json::to_vec_pretty(self)?)
     }
 
     /// Whether a category shows up as a folder: not removed by the user, and
@@ -126,6 +139,11 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_launch_does_not_choose_source_folders() {
+        assert!(Config::default().folders.is_empty());
+    }
 
     #[test]
     fn removed_and_sensitive_categories_are_not_shown() {

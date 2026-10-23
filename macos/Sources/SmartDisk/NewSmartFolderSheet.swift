@@ -13,12 +13,11 @@ struct NewSmartFolderSheet: View {
 
     private let examples = [
         "invoices 2026 over 100 euro",
-        "facturen 2026 boven 100 euro",
-        "contracten met opzegtermijn",
-        "alles over mijn kot",
-        "screenshots met een code erin",
-        "pdf van school deze maand",
-        "belastingen 2025",
+        "contracts with a notice period",
+        "everything about my home",
+        "screenshots with a code",
+        "school pdf this month",
+        "taxes 2025",
     ]
 
     var body: some View {
@@ -29,7 +28,7 @@ struct NewSmartFolderSheet: View {
                     .foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("New Smart Folder").font(.title2.weight(.semibold))
-                    Text("The name is the search. Dutch or English.").foregroundStyle(.secondary)
+                    Text("Name a folder to search your files.").foregroundStyle(.secondary)
                 }
             }
 

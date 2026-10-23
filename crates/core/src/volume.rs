@@ -97,7 +97,7 @@ fn unique_names(files: &mut [VFile], origins: &[String]) {
 impl Tree {
     pub fn build(db: &Db, config: &Config) -> Result<Tree> {
         let generation = db.generation()?;
-        let files: HashMap<i64, _> = db.files()?.into_iter().map(|f| (f.id, f)).collect();
+        let files: HashMap<i64, _> = db.visible_files(config)?.into_iter().map(|f| (f.id, f)).collect();
         let mut dirs = Vec::new();
 
         let mut make_dir = |name: String, kind: DirKind, items: Vec<(i64, f32, Vec<String>)>| {

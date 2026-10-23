@@ -366,7 +366,7 @@ struct FilesCard<Empty: View>: View {
                 .help(ascending ? "Sort descending" : "Sort ascending")
                 .accessibilityLabel(ascending ? "Sort descending" : "Sort ascending")
                 Spacer(minLength: 0)
-                Text(shown.count == items.count ? "\(shown.count.formatted()) files" : "\(shown.count.formatted()) of \(items.count.formatted()) files")
+                Text(shown.count == items.count ? "\(shown.count.formatted()) file\(shown.count == 1 ? "" : "s")" : "\(shown.count.formatted()) of \(items.count.formatted()) files")
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }

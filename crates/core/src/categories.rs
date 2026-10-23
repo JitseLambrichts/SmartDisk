@@ -156,7 +156,7 @@ fn keyword_score(cat: &Category, tokens: &str) -> (f32, Vec<&'static str>) {
 pub fn is_screenshot_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?i)^(screenshot|screen shot|schermafbeelding|scherm­afbeelding|schermopname|cleanshot|capture d.écran|bildschirmfoto)")
+        Regex::new(r"(?i)^(screenshot|screen shot|schermafbeelding|scherm\u{00AD}afbeelding|schermopname|cleanshot|capture d.écran|bildschirmfoto)")
             .unwrap()
     })
     .is_match(name)

@@ -121,7 +121,7 @@ struct PrivacySettings: View {
                 Toggle(isOn: setting(model, "full-text") { $0.storeFullText }) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Keep document text in the index")
-                        Text("When off, only vectors and facts (dates, amounts) are stored. Explanations become shorter. Applies to newly indexed files.")
+                        Text("Turning this off removes saved document text from the index. Vectors and facts, such as dates and amounts, are kept. Text search needs this setting on.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -168,12 +168,12 @@ struct DriveSettings: View {
             Section {
                 Picker("Show the drive as", selection: $model.driveMode) {
                     ForEach(DriveMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                        Text(mode.title).tag(mode).disabled(mode == .fuse && model.capabilities?.fuse != true)
                     }
                 }
                 .pickerStyle(.radioGroup)
                 if model.driveMode == .fuse && model.capabilities?.fuse != true {
-                    Label("This build has no FUSE support. Install FUSE-T or macFUSE, then rebuild with `cargo build --release --features fuse`.", systemImage: "exclamationmark.triangle")
+                    Label("This download uses the built-in folder drive. Select Folder in your home to use it without installing extra software.", systemImage: "info.circle")
                         .font(.callout)
                         .foregroundStyle(.orange)
                 }

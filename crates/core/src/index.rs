@@ -10,6 +10,7 @@ use crate::helper::Helper;
 use anyhow::Result;
 use chrono::{DateTime, Local, NaiveDate};
 use rusqlite::params;
+use rusqlite::OptionalExtension;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::{self, Metadata};
@@ -141,6 +142,14 @@ impl<'a> Indexer<'a> {
 
     /// Indexes one file if it is new or changed.
     pub fn index_path(&mut self, path: &Path) -> Result<Outcome> {
+        // Reject queued work from revoked sources before reading document data.
+        // The transaction check below also covers revocation during extraction.
+        if let Some(raw) = self.db.get_state("source_folders")? {
+            let folders: Vec<PathBuf> = serde_json::from_str(&raw)?;
+            if !folders.iter().any(|root| path.starts_with(root)) && !path.starts_with(&self.config.inbox_path) {
+                return Ok(Outcome::Skipped("source folder was removed".into()));
+            }
+        }
         // Never index the drive itself, and never follow links into it.
         if path.starts_with(&self.config.mirror_path) || path.starts_with(&self.config.fuse_mount_point) {
             return Ok(Outcome::Skipped("on the Smart Disk itself".into()));
@@ -196,6 +205,16 @@ impl<'a> Indexer<'a> {
         let main = facts.main_amount().cloned();
 
         let tx = self.db.conn.transaction()?;
+        let source_folders: Option<String> = tx.query_row("SELECT value FROM state WHERE key='source_folders'", [], |r| r.get(0)).optional()?;
+        if let Some(raw) = source_folders {
+            let folders: Vec<PathBuf> = serde_json::from_str(&raw)?;
+            if !folders.iter().any(|root| path.starts_with(root)) && !path.starts_with(&self.config.inbox_path) {
+                return Ok(Outcome::Skipped("source folder was removed".into()));
+            }
+        }
+        // The database flag is read under the same write lock as the insert, so
+        // an in-flight scan cannot restore text after the privacy switch returns.
+        let text_allowed: bool = tx.query_row("SELECT COALESCE((SELECT value FROM state WHERE key='full_text_enabled'),'1') != '0'", [], |r| r.get(0))?;
         tx.execute(
             "INSERT INTO files(path, root, size, mtime, hash, kind, method, status, error, file_date, doc_date, amount, currency, facts, text_len, embedding, indexed_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'ok', ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
@@ -227,7 +246,7 @@ impl<'a> Indexer<'a> {
         {
             let mut st = tx.prepare("INSERT INTO chunks(file_id, ord, text, embedding) VALUES (?1, ?2, ?3, ?4)")?;
             for (i, c) in chunks.iter().enumerate() {
-                let text = self.config.store_full_text.then_some(c.as_str());
+                let text = (self.config.store_full_text && text_allowed).then_some(c.as_str());
                 st.execute(params![file_id, i as i64, text, to_blob(&self.embedder.embed(c))])?;
             }
         }

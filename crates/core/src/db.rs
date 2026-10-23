@@ -166,6 +166,28 @@ fn file_from_row(r: &rusqlite::Row) -> rusqlite::Result<FileRow> {
 }
 
 impl Db {
+    /// The same visibility rule is used by Finder, search, text search and explanations.
+    pub fn visible_files(&self, config: &crate::Config) -> Result<Vec<FileRow>> {
+        let mut hidden = std::collections::HashSet::new();
+        if !config.sensitive_enabled {
+            for cat in crate::categories::ALL.iter().filter(|c| c.sensitive) {
+                hidden.extend(self.members(cat.id)?.into_iter().map(|(id, _)| id));
+            }
+        }
+        Ok(self.files()?.into_iter().filter(|f|
+            (config.is_watched(&f.path) || f.path.starts_with(&config.inbox_path)) && !hidden.contains(&f.id)
+        ).collect())
+    }
+
+    /// Applies the privacy choice to existing chunks and to concurrent indexers.
+    pub fn set_text_storage(&self, enabled: bool) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute("INSERT INTO state(key,value) VALUES ('full_text_enabled',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [if enabled { "1" } else { "0" }])?;
+        if !enabled { tx.execute("UPDATE chunks SET text=NULL WHERE text IS NOT NULL", [])?; }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn open(path: &Path) -> Result<Db> {
         let conn = Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(10))?;
@@ -182,7 +204,12 @@ impl Db {
     /// Opens the index in the user's data directory.
     pub fn open_default() -> Result<Db> {
         let dir = crate::config::ensure_data_dir()?;
-        Db::open(&dir.join("index.sqlite"))
+        let db = Db::open(&dir.join("index.sqlite"))?;
+        // Migrate the old "off applies only to new files" behaviour as well.
+        if !crate::Config::load()?.store_full_text && db.get_state("full_text_enabled")?.as_deref() != Some("0") {
+            db.set_text_storage(false)?;
+        }
+        Ok(db)
     }
 
     pub fn open_in_memory() -> Result<Db> {

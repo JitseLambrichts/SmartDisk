@@ -168,7 +168,12 @@ final class AppModel {
             let id = ObjectIdentifier(ended)
             // A restart may already have started the next drive; leave that one alone.
             Task { @MainActor in
-                if let self, let daemon = self.daemon, ObjectIdentifier(daemon) == id { self.daemon = nil }
+                if let self, let daemon = self.daemon, ObjectIdentifier(daemon) == id {
+                    self.daemon = nil
+                    if ended.terminationStatus != 0 {
+                        self.errorMessage = "The drive stopped unexpectedly. Open Settings → Activity for details, then try Restart Drive in Settings → Drive."
+                    }
+                }
             }
         }
         do {
@@ -351,7 +356,9 @@ final class AppModel {
     func addWatchedFolders(_ urls: [URL]) {
         guard let client, !urls.isEmpty else { return }
         Task {
-            for url in urls { try? await client.addFolder(url.path) }
+            do {
+                for url in urls { try await client.addFolder(url.path) }
+            } catch { errorMessage = error.localizedDescription }
             await refreshStatus()
         }
     }
@@ -359,7 +366,7 @@ final class AppModel {
     func removeWatchedFolder(_ path: String) {
         guard let client else { return }
         Task {
-            try? await client.removeFolder(path)
+            do { try await client.removeFolder(path) } catch { errorMessage = error.localizedDescription }
             await refreshStatus()
         }
     }
