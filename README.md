@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/category.jpg" width="860" alt="Smart Disk sorting invoices by date and amount">
+  <img src="assets/readme/demo.gif" width="860" alt="Typing &quot;everything about my home&quot; creates a smart folder that fills itself">
 </p>
 
 Smart Disk is a local macOS app that reads the folders you choose and shows
@@ -52,7 +52,7 @@ matching files in smart folders. Create a folder called `invoices 2026 over
 - **Built-in categories.** Invoices, contracts, screenshots, photos and housing.
 - **Private by design.** Everything runs on your Mac; nothing is uploaded.
 
-<sub>Screenshots use the sample documents from `scripts/make-fixtures.swift`.</sub>
+<sub>The demo and screenshots use the sample documents from `scripts/make-fixtures.swift`.</sub>
 
 ## Download and install
 
