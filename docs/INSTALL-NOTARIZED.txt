@@ -1,0 +1,28 @@
+SMART DISK — QUICK START
+
+Requires macOS 26 or later. No account or developer tools are needed.
+Apple Intelligence is optional.
+
+1. Double-click the ZIP to unpack it.
+2. Drag SmartDisk.app into Applications.
+3. Open Smart Disk and confirm macOS's downloaded-app prompt.
+4. Choose the folders to read and allow folder access when macOS asks.
+5. Create a smart folder, such as "invoices 2026 over 100 euro".
+
+For Finder and Open dialogs, drag ~/Slim into Finder's sidebar.
+Keep the menu bar app running to update the drive. Settings controls source
+folders, battery behaviour, categories and document text storage.
+
+All indexing runs locally. The index is in
+~/Library/Application Support/SmartDisk with owner-only permissions.
+It contains extracted facts and, unless disabled, document text.
+Originals stay in place. Editing a file through a smart folder edits its
+original. Removing a smart folder removes the search. Files saved onto the
+drive go to ~/Documents/Slim Inbox.
+
+Recognised identity documents are hidden until enabled in Privacy settings.
+Recognition is not perfect. Choose sources carefully before sharing the drive
+with other apps. Do not share the local index in bug reports.
+
+To uninstall, quit Smart Disk and move the app to the Trash. You can remove
+the local index separately. Keep Slim Inbox if it contains files you saved.

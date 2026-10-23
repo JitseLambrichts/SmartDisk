@@ -1,0 +1,61 @@
+SMART DISK — QUICK START
+
+Requires macOS 26 or later. The universal download supports Apple silicon
+and Intel Macs. Other downloads name the supported Mac type. No account,
+subscription or developer tools are needed. Apple Intelligence is optional.
+
+1. Double-click the ZIP to unpack it.
+2. Drag SmartDisk.app into Applications.
+3. Open Smart Disk from Applications.
+4. Choose the folders you want it to read and allow access when macOS asks.
+5. Create a smart folder, for example "invoices 2026 over 100 euro".
+
+For Finder and Open dialogs, drag the Slim folder in your home folder to
+Finder's sidebar. Keep the menu bar app running to update the drive.
+
+FIRST OPEN — COMMUNITY BUILD
+
+This copy is not notarized by Apple. macOS may block its first launch because
+the developer cannot be verified. Only continue if you trust the person or
+website that supplied this download.
+
+After trying to open it, go to System Settings > Privacy & Security, scroll
+to the message about SmartDisk, select Open Anyway, then confirm Open.
+You may need your Mac's password. Do not disable Gatekeeper or your Mac's
+other security settings. A managed Mac may require administrator approval.
+
+YOUR FILES AND PRIVACY
+
+The app reads the source folders you choose, plus its Inbox for files saved
+onto the drive. OCR, indexing and search run locally. There is no telemetry
+or account. Originals stay in place. Editing a file opened through the drive
+edits that original. Removing a smart folder removes its search; removing a
+file from a smart folder excludes it there. New files saved onto the drive
+are moved to ~/Documents/Slim Inbox.
+
+Recognised identity documents are hidden until enabled in Settings > Privacy.
+Recognition is not perfect. Choose sources carefully before giving another
+app access to the drive. The index contains extracted facts and, unless you
+turn it off, document text. It is stored with owner-only permissions in
+~/Library/Application Support/SmartDisk. It is not encrypted separately from
+your Mac. Do not share that folder in bug reports.
+
+TROUBLESHOOTING
+
+No files yet: check Settings > Folders and access in System Settings > Privacy
+& Security > Files & Folders. Large scans pause on battery by default; connect
+power or change Pause while on battery in Settings > Folders.
+
+Drive folder already exists: Smart Disk refuses unrelated nonempty folders.
+Quit, rename your existing Slim folder to keep its contents, then reopen the
+app. Never delete original files to resolve this.
+
+App component missing: unpack a fresh copy. Move the whole SmartDisk.app
+bundle, not a file from inside it, into Applications.
+
+UNINSTALL
+
+Quit Smart Disk and move the app to the Trash. You can separately delete
+~/Library/Application Support/SmartDisk to remove its local index. Check for
+files you saved before removing ~/Slim. Keep ~/Documents/Slim Inbox if it
+contains your files.

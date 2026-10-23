@@ -1,0 +1,30 @@
+name: Draft ZIP release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: draft-release
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: cargo test --workspace --locked
+      - run: swift test --package-path macos
+      - run: scripts/check-secrets.sh
+      - run: scripts/package-release.sh --universal
+      - name: Create a draft with the downloadable ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(awk -F '"' '/^version = / { print $2; exit }' Cargo.toml)
+          gh release create "v$version" \
+            "dist/SmartDisk-$version-macOS-universal.zip" \
+            "dist/SmartDisk-$version-macOS-universal.zip.sha256" \
+            --target "$GITHUB_SHA" --draft \
+            --title "Smart Disk $version" --notes-file docs/RELEASE-NOTES.md
