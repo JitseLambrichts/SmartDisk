@@ -1,14 +1,63 @@
-# Smart Disk
+<p align="center">
+  <img src="assets/readme/logo.png" width="120" alt="Smart Disk logo">
+</p>
 
-**Folders that fill themselves. Your original files stay where they are.**
+<h1 align="center">Smart Disk</h1>
+
+<p align="center">
+  <strong>Folders that fill themselves. Your original files stay where they are.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/JitseLambrichts/SmartDisk/actions/workflows/checks.yml"><img src="https://github.com/JitseLambrichts/SmartDisk/actions/workflows/checks.yml/badge.svg" alt="Checks"></a>
+  <img src="https://img.shields.io/badge/macOS-26%2B-111111?logo=apple" alt="macOS 26 or later">
+  <img src="https://img.shields.io/badge/Apple%20silicon%20%26%20Intel-universal-2f8f6f" alt="Universal app">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2f8f6f" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/JitseLambrichts/SmartDisk/releases/latest"><strong>Download</strong></a> ·
+  <a href="docs/INSTALL.txt">Install guide</a> ·
+  <a href="PRIVACY.md">Privacy</a>
+</p>
+
+<p align="center">
+  <img src="assets/readme/category.jpg" width="860" alt="Smart Disk sorting invoices by date and amount">
+</p>
 
 Smart Disk is a local macOS app that reads the folders you choose and shows
 matching files in smart folders. Create a folder called `invoices 2026 over
 100 euro` and it fills itself. No account, telemetry or cloud service is used.
 
+## How it works
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/new-folder.jpg" alt="Naming a new smart folder">
+      <p><strong>1. Name a folder.</strong> Write what you are looking for in
+      plain words. Smart Disk shows how it understood the name and which files
+      would land in it before you create anything.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/smart-folder.jpg" alt="A smart folder with invoices over 100 euro">
+      <p><strong>2. It fills itself.</strong> Matching files appear with their
+      date and amount, and new files join automatically. The folder also shows
+      up in Finder, while the originals stay where they are.</p>
+    </td>
+  </tr>
+</table>
+
+- **Reads what is inside.** PDF text, OCR on images and scans, dates and amounts.
+- **Built-in categories.** Invoices, contracts, screenshots, photos and housing.
+- **Private by design.** Everything runs on your Mac; nothing is uploaded.
+
+<sub>Screenshots use the sample documents from `scripts/make-fixtures.swift`.</sub>
+
 ## Download and install
 
-Use the **SmartDisk-0.3.0-macOS-universal.zip** supplied with this release.
+Download **SmartDisk-0.3.0-macOS-universal.zip** from
+[Releases](https://github.com/JitseLambrichts/SmartDisk/releases/latest).
 It contains the app and an English quick-start guide. The universal app runs
 on **Apple silicon and Intel Macs with macOS 26 or later**. Recipients do not
 need Rust, Xcode, Homebrew or a FUSE driver. Apple Intelligence is optional.
